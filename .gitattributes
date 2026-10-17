@@ -1,0 +1,9 @@
+* text=auto
+# dictionaries and benchmark data: the same bytes on every platform
+*.csv text eol=lf
+*.txt text eol=lf
+*.json text eol=lf
+# Windows PowerShell scripts
+*.ps1 text eol=crlf
+*.ico binary
+*.gguf binary
