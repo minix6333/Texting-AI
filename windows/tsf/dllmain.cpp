@@ -136,10 +136,14 @@ struct ComScope {
 
 using namespace zl::tsf;
 
-extern "C" BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID) {
+extern "C" BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved) {
     if (reason == DLL_PROCESS_ATTACH) {
         g_module = instance;
         DisableThreadLibraryCalls(instance);
+    } else if (reason == DLL_PROCESS_DETACH && !reserved) {
+        // classes a DLL registers outlive it: a reloaded copy would get the old window procedures
+        UnregisterClassW(kPopupClass, instance);
+        UnregisterClassW(kHiddenClass, instance);
     }
     return TRUE;
 }

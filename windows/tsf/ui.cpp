@@ -8,7 +8,7 @@
 namespace zl::tsf {
 
 namespace {
-const wchar_t* kClass = L"ZhuyinLLM.Popup";
+const wchar_t* kClass = kPopupClass;
 const wchar_t* kFace = L"Microsoft JhengHei UI";
 
 struct Theme {

@@ -84,6 +84,10 @@ inline std::string narrow(const std::wstring& w) {
     return s;
 }
 
+/// Window classes of the text service (unregistered when the DLL unloads).
+constexpr const wchar_t* kPopupClass = L"ZhuyinLLM.Popup";
+constexpr const wchar_t* kHiddenClass = L"ZhuyinLLM.Hidden";
+
 /// The directory of this DLL (where zhuyinllm-server.exe is installed too).
 std::wstring moduleDir();
 

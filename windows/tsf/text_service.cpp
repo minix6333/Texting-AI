@@ -10,7 +10,6 @@ namespace zl::tsf {
 namespace {
 constexpr UINT kMsgServer = WM_APP + 1;  // lParam: std::string* from the pipe's reader thread
 constexpr UINT kMsgLayout = WM_APP + 2;
-const wchar_t* kHiddenClass = L"ZhuyinLLM.Hidden";
 
 class EditSession final : public ITfEditSession {
 public:

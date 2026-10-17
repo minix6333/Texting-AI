@@ -17,7 +17,7 @@ long long nowMs() {
 }
 
 bool fileExists(const std::string& path) {
-    std::ifstream f(path, std::ios::binary);
+    std::ifstream f(pathFromUtf8(path), std::ios::binary);
     return bool(f);
 }
 
@@ -131,7 +131,7 @@ void Engine::addSettingsListener(std::function<void(const Settings&)> listener) 
 
 void Engine::loadSettings() {
     if (config_.stateDir.empty()) return;
-    std::ifstream in(config_.stateDir + "/settings.json", std::ios::binary);
+    std::ifstream in(pathFromUtf8(config_.stateDir + "/settings.json"), std::ios::binary);
     if (in) {
         std::stringstream ss;
         ss << in.rdbuf();
@@ -147,7 +147,7 @@ void Engine::loadSettings() {
             log("settings.json unreadable; using defaults");
         }
     }
-    std::ifstream words(config_.stateDir + "/userwords.txt", std::ios::binary);
+    std::ifstream words(pathFromUtf8(config_.stateDir + "/userwords.txt"), std::ios::binary);
     std::string line;
     while (std::getline(words, line)) {
         if (!line.empty() && line.back() == '\r') line.pop_back();
@@ -164,14 +164,14 @@ void Engine::saveSettings() const {
     v.set("typoTolerant", settings_.typoTolerant);
     v.set("shiftToggles", settings_.shiftToggles);
     v.set("ctrlSymbols", settings_.ctrlSymbols);
-    std::ofstream out(config_.stateDir + "/settings.json", std::ios::binary | std::ios::trunc);
+    std::ofstream out(pathFromUtf8(config_.stateDir + "/settings.json"), std::ios::binary | std::ios::trunc);
     out << v.dump();
 }
 
 void Engine::addUserWord(const std::u32string& word) {
     std::lock_guard<std::mutex> lock(settingsMutex_);
     if (!userWords_.insert(lower(word)).second || config_.stateDir.empty()) return;
-    std::ofstream out(config_.stateDir + "/userwords.txt", std::ios::binary | std::ios::app);
+    std::ofstream out(pathFromUtf8(config_.stateDir + "/userwords.txt"), std::ios::binary | std::ios::app);
     out << toU8(lower(word)) << "\n";
 }
 

@@ -16,7 +16,7 @@ namespace zl {
 
 namespace {
 std::vector<std::string> readLines(const std::string& path, bool& ok) {
-    std::ifstream in(path, std::ios::binary);
+    std::ifstream in(pathFromUtf8(path), std::ios::binary);
     ok = bool(in);
     std::vector<std::string> lines;
     std::string line;

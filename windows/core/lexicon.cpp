@@ -38,7 +38,7 @@ std::vector<std::u32string> split(const std::u32string& s, char32_t sep) {
 }  // namespace
 
 Lexicon::Lexicon(const std::string& path) {
-    std::ifstream in(path, std::ios::binary);
+    std::ifstream in(pathFromUtf8(path), std::ios::binary);
     if (!in) throw std::runtime_error("cannot read " + path);
     // reading → (phrase, frequency); std::map keeps the build deterministic
     std::map<std::u32string, std::vector<std::pair<std::u32string, double>>> raw;
