@@ -344,7 +344,7 @@ bool TextService::handleKey(ITfContext* pic, WPARAM wp) {
     req.set("ctrl", GetKeyState(VK_CONTROL) < 0);
     req.set("alt", GetKeyState(VK_MENU) < 0);
     req.set("caps", (GetKeyState(VK_CAPITAL) & 1) != 0);
-    if (idle_ && pic) {
+    if (idle_ && pic && vk::usKey(code)) {  // a key that may start a word or a composition
         if (auto ctx = readContext(pic)) req.set("ctx", narrow(*ctx));
     }
     json::Value r = call(req, 400);
