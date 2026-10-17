@@ -297,12 +297,12 @@ void BubbleWindow::timer() {
 SIZE BubbleWindow::measure(HDC dc, float s) {
     const int pad = int(8 * s);
     if (flash_) {
-        Font big(int(26 * s), FW_SEMIBOLD), small(int(13 * s));
-        const SIZE g = textSize(dc, big.h, text_), n = textSize(dc, small.h, note_);
+        Font glyphFont(int(26 * s), FW_SEMIBOLD), noteFont(int(13 * s));
+        const SIZE g = textSize(dc, glyphFont.h, text_), n = textSize(dc, noteFont.h, note_);
         return SIZE{pad * 3 + g.cx + n.cx, pad * 2 + std::max(g.cy, n.cy)};
     }
-    Font big(int(22 * s)), small(int(13 * s));
-    const SIZE g = textSize(dc, big.h, text_), r = textSize(dc, small.h, reading_), n = textSize(dc, small.h, note_);
+    Font glyphFont(int(22 * s)), noteFont(int(13 * s));
+    const SIZE g = textSize(dc, glyphFont.h, text_), r = textSize(dc, noteFont.h, reading_), n = textSize(dc, noteFont.h, note_);
     const int line1 = (dot_ ? int(14 * s) : 0) + g.cx + int(8 * s) + r.cx;
     const int width = std::max(line1, note_.empty() ? 0 : int(n.cx));
     return SIZE{pad * 2 + width, pad * 2 + g.cy + (note_.empty() ? 0 : int(4 * s) + n.cy)};
@@ -313,16 +313,16 @@ void BubbleWindow::paint(HDC dc, const RECT& rc, float s) {
     frame(dc, rc, t);
     const int pad = int(8 * s);
     if (flash_) {
-        Font big(int(26 * s), FW_SEMIBOLD), small(int(13 * s));
-        const SIZE g = textSize(dc, big.h, text_);
+        Font glyphFont(int(26 * s), FW_SEMIBOLD), noteFont(int(13 * s));
+        const SIZE g = textSize(dc, glyphFont.h, text_);
         RECT r1 = {rc.left + pad, rc.top, rc.left + pad + g.cx, rc.bottom};
-        drawText(dc, big.h, t.text, text_, r1, DT_LEFT | DT_VCENTER);
+        drawText(dc, glyphFont.h, t.text, text_, r1, DT_LEFT | DT_VCENTER);
         RECT r2 = {r1.right + pad, rc.top, rc.right - pad, rc.bottom};
-        drawText(dc, small.h, t.secondary, note_, r2, DT_LEFT | DT_VCENTER);
+        drawText(dc, noteFont.h, t.secondary, note_, r2, DT_LEFT | DT_VCENTER);
         return;
     }
-    Font big(int(22 * s)), small(int(13 * s));
-    const SIZE g = textSize(dc, big.h, text_);
+    Font glyphFont(int(22 * s)), noteFont(int(13 * s));
+    const SIZE g = textSize(dc, glyphFont.h, text_);
     int x = rc.left + pad;
     const int y = rc.top + pad;
     if (dot_) {
@@ -330,12 +330,12 @@ void BubbleWindow::paint(HDC dc, const RECT& rc, float s) {
         x += int(14 * s);
     }
     RECT r1 = {x, y, x + g.cx, y + g.cy};
-    drawText(dc, big.h, t.text, text_, r1, DT_LEFT | DT_VCENTER);
+    drawText(dc, glyphFont.h, t.text, text_, r1, DT_LEFT | DT_VCENTER);
     RECT r2 = {r1.right + int(8 * s), y, rc.right - pad, y + g.cy};
-    drawText(dc, small.h, t.secondary, reading_, r2, DT_LEFT | DT_VCENTER);
+    drawText(dc, noteFont.h, t.secondary, reading_, r2, DT_LEFT | DT_VCENTER);
     if (!note_.empty()) {
         RECT r3 = {rc.left + pad, y + g.cy + int(4 * s), rc.right - pad, rc.bottom - pad};
-        drawText(dc, small.h, dot_ == 1 ? kOrange : dot_ == 2 ? kRed : t.secondary, note_, r3, DT_LEFT | DT_VCENTER);
+        drawText(dc, noteFont.h, dot_ == 1 ? kOrange : dot_ == 2 ? kRed : t.secondary, note_, r3, DT_LEFT | DT_VCENTER);
     }
 }
 
