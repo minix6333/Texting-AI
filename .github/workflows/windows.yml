@@ -13,17 +13,26 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build x64 (engine server, text service, tests)
+        shell: pwsh
         run: |
           cmake -S windows -B build-x64 -A x64
-          cmake --build build-x64 --config Release --parallel
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          cmake --build build-x64 --config Release --parallel -- /v:minimal 2>&1 | Tee-Object -FilePath build-x64.log
+          if ($LASTEXITCODE -ne 0) { ./windows/tools/ci_errors.ps1 build-x64.log 'x64 build'; exit 1 }
 
       - name: Build x86 (text service for 32-bit apps)
+        shell: pwsh
         run: |
           cmake -S windows -B build-x86 -A Win32 -DZL_BUILD_ENGINE=OFF
-          cmake --build build-x86 --config Release --parallel
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          cmake --build build-x86 --config Release --parallel -- /v:minimal 2>&1 | Tee-Object -FilePath build-x86.log
+          if ($LASTEXITCODE -ne 0) { ./windows/tools/ci_errors.ps1 build-x86.log 'x86 build'; exit 1 }
 
       - name: Session tests (dictionary only)
-        run: build-x64\Release\session_test.exe data
+        shell: pwsh
+        run: |
+          build-x64\Release\session_test.exe data 2>&1 | Tee-Object -FilePath session.log
+          if ($LASTEXITCODE -ne 0) { ./windows/tools/ci_errors.ps1 session.log 'session test' 'FAIL'; exit 1 }
 
       - name: Package
         shell: pwsh
@@ -38,8 +47,9 @@ jobs:
         shell: pwsh
         run: |
           Copy-Item build-x64\Release\pipe_test.exe dist\ZhuyinLLM
-          & dist\ZhuyinLLM\pipe_test.exe
+          & dist\ZhuyinLLM\pipe_test.exe 2>&1 | Tee-Object -FilePath pipe.log
           $code = $LASTEXITCODE
+          if ($code -ne 0) { ./windows/tools/ci_errors.ps1 pipe.log 'pipe test' 'FAIL|ok' }
           Get-Process zhuyinllm-server -ErrorAction SilentlyContinue | Stop-Process -Force
           Remove-Item dist\ZhuyinLLM\pipe_test.exe
           Get-Content "$env:LOCALAPPDATA\ZhuyinLLM\server.log" -ErrorAction SilentlyContinue

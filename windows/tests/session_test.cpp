@@ -3,6 +3,7 @@
 // and applies responses and pushes the way tsf/ does.
 //   session_test <data dir> [model.gguf]     (without a model: dictionary-only tests)
 
+#include <algorithm>
 #include <chrono>
 #include <condition_variable>
 #include <cstdio>

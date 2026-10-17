@@ -90,7 +90,7 @@ if(WIN32 AND ZL_BUILD_TSF)
   add_library(zhuyinllm_tsf SHARED
     tsf/dllmain.cpp tsf/text_service.cpp tsf/pipe_client.cpp tsf/ui.cpp tsf/langbar.cpp
     tsf/display_attributes.cpp tsf/zhuyinllm.rc tsf/zhuyinllm.def core/json.cpp)
-  target_include_directories(zhuyinllm_tsf PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+  target_include_directories(zhuyinllm_tsf PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/tsf)
   target_compile_definitions(zhuyinllm_tsf PRIVATE UNICODE _UNICODE)
   set_target_properties(zhuyinllm_tsf PROPERTIES OUTPUT_NAME "ZhuyinLLM-${ZL_ARCH}" PREFIX "")
   target_link_libraries(zhuyinllm_tsf PRIVATE ole32 oleaut32 uuid advapi32 user32 gdi32)
