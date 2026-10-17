@@ -1,0 +1,69 @@
+name: Windows
+
+on:
+  push:
+    paths: ['windows/**', 'data/**', 'THIRD_PARTY_NOTICES.md', '.github/workflows/windows.yml']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build x64 (engine server, text service, tests)
+        run: |
+          cmake -S windows -B build-x64 -A x64
+          cmake --build build-x64 --config Release --parallel
+
+      - name: Build x86 (text service for 32-bit apps)
+        run: |
+          cmake -S windows -B build-x86 -A Win32 -DZL_BUILD_ENGINE=OFF
+          cmake --build build-x86 --config Release --parallel
+
+      - name: Session tests (dictionary only)
+        run: build-x64\Release\session_test.exe data
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $out = 'dist\ZhuyinLLM'
+          New-Item -ItemType Directory -Force $out, "$out\data" | Out-Null
+          Copy-Item build-x64\Release\ZhuyinLLM-x64.dll, build-x64\Release\zhuyinllm-server.exe, build-x86\Release\ZhuyinLLM-x86.dll $out
+          Copy-Item data\tsi.csv, data\en_freq.txt, data\en_known_words.txt, data\en_misspellings.txt "$out\data"
+          Copy-Item windows\installer\install.ps1, windows\installer\uninstall.ps1, windows\README.md, THIRD_PARTY_NOTICES.md $out
+
+      - name: Pipe test (engine server and the text service's client over the named pipe)
+        shell: pwsh
+        run: |
+          Copy-Item build-x64\Release\pipe_test.exe dist\ZhuyinLLM
+          & dist\ZhuyinLLM\pipe_test.exe
+          $code = $LASTEXITCODE
+          Get-Process zhuyinllm-server -ErrorAction SilentlyContinue | Stop-Process -Force
+          Remove-Item dist\ZhuyinLLM\pipe_test.exe
+          Get-Content "$env:LOCALAPPDATA\ZhuyinLLM\server.log" -ErrorAction SilentlyContinue
+          if ($code -ne 0) { throw "pipe test failed ($code)" }
+
+      - name: Register and unregister the text service (regsvr32)
+        shell: pwsh
+        run: |
+          $x64 = (Resolve-Path dist\ZhuyinLLM\ZhuyinLLM-x64.dll).Path
+          $x86 = (Resolve-Path dist\ZhuyinLLM\ZhuyinLLM-x86.dll).Path
+          $wow = "$env:SystemRoot\SysWOW64\regsvr32.exe"
+          $p = Start-Process regsvr32 -ArgumentList '/s', "`"$x64`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "regsvr32 x64 failed: $($p.ExitCode)" }
+          $p = Start-Process $wow -ArgumentList '/s', "`"$x86`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "regsvr32 x86 failed: $($p.ExitCode)" }
+          $tip = 'HKLM:\SOFTWARE\Microsoft\CTF\TIP\{1B5BEE20-7F75-40F4-A6F8-1B380B750667}'
+          Get-ChildItem -Recurse $tip | ForEach-Object { $_.Name }
+          if (-not (Test-Path "$tip\LanguageProfile\0x00000404\{34D9D8DD-6A8B-4B71-B04B-62BA54162400}")) { throw 'profile not registered' }
+          if (-not (Get-ChildItem -Recurse $tip | Where-Object { $_.Name -match '34745C63-B2F0-4784-8B67-5E12C8701A31' })) { throw 'keyboard category not registered' }
+          Start-Process regsvr32 -ArgumentList '/u', '/s', "`"$x64`"" -Wait
+          Start-Process $wow -ArgumentList '/u', '/s', "`"$x86`"" -Wait
+          if (Test-Path "$tip\LanguageProfile\0x00000404\{34D9D8DD-6A8B-4B71-B04B-62BA54162400}") { throw 'profile not removed' }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ZhuyinLLM-windows
+          path: dist/ZhuyinLLM

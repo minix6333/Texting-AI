@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>即時 LLM 糾錯輸入法 — 研究調查與系統設計報告</title>
+<style>
+  :root{
+    --bg:#0f1117; --panel:#181b24; --panel2:#1f2330; --text:#e8eaf0; --muted:#9aa3b5;
+    --accent:#6ea8fe; --accent2:#8b5cf6; --green:#34d399; --yellow:#fbbf24; --red:#f87171;
+    --border:#2a2f3e; --radius:12px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Segoe UI","Noto Sans TC",system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.75}
+  .layout{display:flex;max-width:1280px;margin:0 auto}
+  nav{position:sticky;top:0;height:100vh;width:220px;flex-shrink:0;padding:32px 16px;border-right:1px solid var(--border)}
+  nav h3{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+  nav a{display:block;color:var(--muted);text-decoration:none;font-size:14px;padding:6px 10px;border-radius:6px;margin-bottom:2px}
+  nav a:hover{background:var(--panel2);color:var(--text)}
+  main{flex:1;padding:40px 48px;min-width:0}
+  header.hero{margin-bottom:40px}
+  .hero h1{font-size:30px;line-height:1.3;margin-bottom:8px}
+  .hero .meta{color:var(--muted);font-size:14px}
+  .hero .meta span{margin-right:16px}
+  section{margin-bottom:48px}
+  h2{font-size:22px;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid var(--accent);display:inline-block}
+  h3{font-size:17px;margin:20px 0 8px}
+  p{margin-bottom:12px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:16px}
+  .card h3{margin-top:0}
+  .card h3 a{color:var(--accent);text-decoration:none}
+  .card h3 a:hover{text-decoration:underline}
+  .badges{margin:4px 0 12px}
+  .badge{display:inline-block;font-size:12px;padding:2px 10px;border-radius:999px;margin-right:6px;background:var(--panel2);color:var(--muted);border:1px solid var(--border)}
+  .badge.venue{background:rgba(110,168,254,.15);color:var(--accent);border-color:rgba(110,168,254,.3)}
+  .badge.award{background:rgba(251,191,36,.15);color:var(--yellow);border-color:rgba(251,191,36,.3)}
+  .badge.hi{background:rgba(52,211,153,.15);color:var(--green);border-color:rgba(52,211,153,.3)}
+  .badge.mid{background:rgba(251,191,36,.12);color:var(--yellow);border-color:rgba(251,191,36,.3)}
+  .badge.lo{background:rgba(248,113,113,.12);color:var(--red);border-color:rgba(248,113,113,.3)}
+  .kv{margin:8px 0}
+  .kv dt{color:var(--accent);font-size:13px;font-weight:600;margin-top:10px}
+  .kv dd{margin-left:0;color:var(--text)}
+  .kv dd.muted{color:var(--muted)}
+  .breakthrough{border-left:3px solid var(--accent2)}
+  .inspiration{border-left:3px solid var(--green)}
+  .summary-box{background:linear-gradient(135deg,rgba(110,168,254,.08),rgba(139,92,246,.08));border:1px solid rgba(110,168,254,.25);border-radius:var(--radius);padding:24px;margin-bottom:16px}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border)}
+  th{color:var(--muted);font-weight:600;font-size:13px}
+  ul,ol{margin:0 0 12px 22px}
+  li{margin-bottom:6px}
+  .links-list a{color:var(--accent);text-decoration:none}
+  .links-list a:hover{text-decoration:underline}
+  footer{color:var(--muted);font-size:13px;padding:24px 0;border-top:1px solid var(--border)}
+  @media(max-width:900px){nav{display:none}main{padding:24px 20px}}
+</style>
+<style>
+  /* additions for this report (template CSS above is unchanged) */
+  .tbl-wrap{overflow-x:auto;margin:12px 0}
+  .tbl-wrap table{margin:0;min-width:640px}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  tr.hl td{background:rgba(110,168,254,.07)}
+  .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:16px 0}
+  .kpi{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+  .kpi .label{color:var(--muted);font-size:13px}
+  .kpi .value{font-size:28px;font-weight:600;line-height:1.3;margin:2px 0}
+  .kpi .note{color:var(--muted);font-size:12px;line-height:1.5}
+  .callout{border-left:3px solid var(--yellow);background:rgba(251,191,36,.06);padding:12px 16px;border-radius:0 8px 8px 0;margin:12px 0;font-size:14px}
+  .callout.ok{border-left-color:var(--green);background:rgba(52,211,153,.06)}
+  code,kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.88em;background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:0 5px}
+  .muted{color:var(--muted)}
+  .small{font-size:13px}
+  .figure{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin:16px 0}
+  .figure figcaption{color:var(--muted);font-size:13px;margin-top:8px}
+  .figure svg{display:block;width:100%;height:auto}
+  .scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .scroll-x > .fig-inner{min-width:640px;position:relative}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:900px){.grid2{grid-template-columns:1fr}}
+  .tag-sync{color:var(--green)} .tag-async{color:var(--accent)}
+  details{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin:12px 0}
+  details summary{cursor:pointer;color:var(--accent);font-weight:600}
+  .chart-tip{position:absolute;pointer-events:none;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.5;color:var(--text);opacity:0;transition:opacity .08s;white-space:nowrap;z-index:5}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav>
+  <h3>目錄</h3>
+  <a href="#summary">執行摘要</a>
+  <a href="#goals">需求與設計目標</a>
+  <a href="#trends">領域趨勢地圖</a>
+  <a href="#papers">精選論文</a>
+  <a href="#precedents">產品與開源前例</a>
+  <a href="#bench">本機實測（M4 Air）</a>
+  <a href="#design">系統設計</a>
+  <a href="#keys">按鍵規格（照原生 Mac）</a>
+  <a href="#breakthroughs">創新突破口</a>
+  <a href="#inspirations">跨領域靈感</a>
+  <a href="#experiment">實驗規劃與路線圖</a>
+  <a href="#next">建議下一步</a>
+  <a href="#links">全部連結</a>
+</nav>
+<main>
+
+<header class="hero">
+  <h1>即時 LLM 糾錯輸入法（注音＋英文，macOS）<br><span style="font-size:20px;color:var(--muted);font-weight:400">研究調查・本機實測・系統設計報告</span></h1>
+  <div class="meta">
+    <span>📅 2026-10-17</span>
+    <span>🔎 搜尋範圍：ACL/EMNLP/NAACL/COLING/LREC/BEA、ICLR/ICML/NeurIPS/MLSys、CHI/MUM/ISS、Interspeech/ICASSP、產業技術部落格與開源原始碼（主力 2024-10～2026-10，經典文獻另標「背景」）</span>
+    <span>📄 精選 17 篇論文＋30 餘個產品/開源前例</span>
+    <span>💻 實測機器：MacBook Air M4（無風扇）、16 GB、macOS 27.0.1</span>
+  </div>
+</header>
+
+<section id="summary">
+  <h2>執行摘要</h2>
+  <div class="kpi-row">
+    <div class="kpi"><div class="label">注音字錯誤率（乾淨輸入）</div><div class="value">−51%</div><div class="note">3.52% → 1.73%（Qwen3-0.6B 重排 lattice）</div></div>
+    <div class="kpi"><div class="label">打錯鍵的字救回率</div><div class="value">85–91%</div><div class="note">不容錯時只有 2%；容錯 lattice 單獨 75%</div></div>
+    <div class="kpi"><div class="label">有錯字時整段全對</div><div class="value">52→73%</div><div class="note">不容錯的傳統引擎：0.7%</div></div>
+    <div class="kpi"><div class="label">每音節 LLM 延遲（p50）</div><div class="value">32–50 ms</div><div class="note">連續 31.7 ms；真實打字節奏 43–50 ms（Python，未最佳化）</div></div>
+    <div class="kpi"><div class="label">英文自動更正 precision</div><div class="value">99%</div><div class="note">錯字修好 96%；正確字誤改 0／1000</div></div>
+  </div>
+  <div class="summary-box">
+    <ol>
+      <li><b>「幾乎 0 延遲」靠架構，不靠更快的模型。</b>按鍵→畫面的路徑完全不經過 LLM，由傳統注音引擎在毫秒內出字（和原生注音一樣）；LLM 在背景重排候選，在你打下一個音節之前就回填組字區。實測每音節 LLM p50 為 32–50 ms，而音節之間通常 ≥300 ms，所以你不會「等」到它。</li>
+      <li><b>讓 LLM「打分」，不要讓它「生成」。</b>注音詞典 lattice 產生 K 個候選（含鍵盤鄰鍵、聲調、台灣口音合併等容錯候選），LLM 一次 forward 打分，輸出必定來自詞典。這樣不會幻覺，也不會亂改。學術（MSLLM、Zhou et al. 2024、two-pass ASR）、開源（azooKey/Zenzai、樹懶注音、rime-llm-rerank）與本機實測都指向同一結論；LREC 2026 則證實「讓 3B LLM 直接生成」最差（CER 0.75）。</li>
+      <li><b>修正只發生在「還沒送出」的組字區。</b>中文直接改寫組字區，就像原生注音邊打邊重新選字，所有 app 都支援。英文在詞邊界套用，UI 模仿 macOS 原生 autocorrect。回頭改已送出的文字只在可驗證的 app 白名單內進行，終端機永不。</li>
+      <li><b>模型選 Qwen3-0.6B（4-bit，純 attention）。</b>1.7B／2B 的準確度只多約 0.3 個百分點，延遲卻約 2 倍以上（冷卻後公平重測 67–75 ms 對 36 ms）。Qwen3.5-0.8B 最準，打分只慢約 10%，但每鍵追加慢 1.6 倍，退格也不能直接回滾（需自建狀態快照），適合當第二階段的「品質模式」。Gemma 3 270M 打分快約 3 倍（8 候選 12.6 ms），準確度略低，適合省電模式。長期可蒸餾 30–100M 的注音專用模型，把延遲壓到個位數 ms。</li>
+      <li><b>無風扇 MacBook Air 的兩個實測陷阱。</b>(a) 持續推論約 1–2 分鐘後 thermalState 升到 fair，延遲幾乎翻倍；(b) 真實打字節奏下，GPU 每次閒置後要「醒來」，約多 14 ms。對策：熵門控（lattice 很確定時不叫 LLM）、取消過期工作、原生 Swift＋tree attention、只重排最後幾個音節、聲母一按下就推測打分。</li>
+      <li><b>按鍵完全照原生注音／ABC。</b>大千佈局；Space＝一聲或開候選窗；候選窗中 Space 翻頁、Return 或數字選字；<code>[ ]</code>＝「」、<code>\</code>＝、；原生沒有 Shift 切換中英（由系統 Caps Lock／⌃Space 切換）。AI 功能只借用原生語意：⇧Delete（原生「還原上一個替代項目」）撤銷 AI 修正、英文建議按 Esc 忽略。</li>
+      <li><b>市場缺口與研究縫隙。</b>Apple 拼音有「更正拼字」，<b>注音沒有任何容錯選項</b>；學術界找不到同儕審查的神經注音打錯鍵研究，也沒有公開的注音打錯鍵資料集。兩者都是可以發表的突破口（見第 9 節）。</li>
+      <li><b>主要風險</b>：Qwen 偏好簡體用字（雲端→云端、週→周，用台灣詞頻先驗加繁中 LoRA 解決）；IMK 在終端機、Chromium、Office 的怪癖（用 per-app 策略處理）；PoC 的測試句少、錯誤是合成的，需要真人注音打字資料驗證。</li>
+    </ol>
+  </div>
+</section>
+
+<section id="goals">
+  <h2>需求與設計目標</h2>
+  <p>把你的需求翻成可量測的工程目標。後面的設計、實測與實驗規劃都以這張表為準。</p>
+  <div class="tbl-wrap"><table>
+    <tr><th>你的需求</th><th>工程目標（可量測）</th><th>依據</th></tr>
+    <tr><td>打字時即時修掉錯字，「幾乎 0 延遲」</td><td>按鍵→組字區更新的路徑<b>完全不經過 LLM</b>，IME 自身 ≤5 ms（p95）；LLM 修正在背景完成，目標 p95 ≤30 ms，超過 80 ms 直接丟棄；commit 時最多等 50 ms，而且只送出使用者已經看到的內容</td><td>間接輸入的延遲察覺門檻約 55–96 ms（Deber 2015，轉引）；快手按鍵間隔約 120 ms（Dhakal 2018）；azooKey 作者經驗是 20–30 ms 才順、40 ms 是 live conversion 上限</td></tr>
+    <tr><td>準確、修正率高</td><td>中文：字錯誤率比傳統詞頻引擎至少降 40%；有打錯鍵時救回 ≥85% 的錯字；「原本對被改錯」的數量 ≤ 修好數量的 1/5。英文：自動替換的 precision ≥97%</td><td>改錯一次要 5.5 秒才修回（Alharbi 2020）；每 40–50 次自動修正最多錯 1 次（主題 A 推估）</td></tr>
+    <tr><td>用起來滑順、不卡頓</td><td>不閃爍（同一處最多改一次）、不搶鍵、宿主 app 不會因 IME 卡住（看門狗＋熔斷）、無風扇機器長時間打字不降頻</td><td>vChewing #616（IME 死結把宿主一起凍住）；本機實測連跑 13 分鐘後 thermalState 由 nominal 升到 fair</td></tr>
+    <tr><td>本地 LLM、不需要大模型</td><td>完全離線；模型 ≤1 GB；常駐記憶體目標 ≤1.5 GB</td><td>Qwen3-0.6B 4-bit 權重 335 MB（實測）</td></tr>
+    <tr><td>中文＋英文</td><td>繁中注音（大千）＋英文，支援中英混打，偵測「忘了切換輸入法」</td><td>—</td></tr>
+    <tr><td>按鍵照原版 Mac</td><td>與 macOS 內建「注音－繁體」與「ABC」行為一致；AI 功能只借用原生既有的按鍵語意，不另創快捷鍵</td><td>本機 macOS 27 說明快取＋系統佈局檔逐鍵比對（第 8 節）</td></tr>
+  </table></div>
+</section>
+
+<section id="trends">
+  <h2>領域趨勢地圖</h2>
+
+  <h3>① 英文即時糾錯：從 noisy channel 到「精確率優先」的 LLM</h3>
+  <p>從 Kernighan/Church/Gale（1990）、Brill &amp; Moore（2000）起，主架構一直是「鍵盤錯誤模型 × 語言模型」的 noisy channel。之後出現 tagging 式的 GECToR（2020，比 seq2seq 快約 10 倍），以及把輸入當草稿的 aggressive decoding（SAD, ACL 2021）。到了 LLM 時代，2024–2026 的研究反覆證實 zero-shot LLM 會過度修正（Pillars of GEC 2024、Davis 2024），所以近期工作把重點放在「編輯級驗證、照抄樣本、保守化訓練」（BEA 2025 Staruch、EMNLP 2025 PoCO、BEA 2026 edit-level voting）。產業界的端側方案都是「小模型＋蒸餾＋量化」：Pixel 6 用 20 MB 模型、22 ms 改 60 字元；Grammarly 在 Mac 上用 MLX 跑 1B 4-bit 模型，約 210 tok/s；Apple 的鍵盤 LM 約 34M。句級修正一律採「畫底線、點了才改」或使用者主動觸發（Gboard Proofread），只有詞級 typo 才會自動替換。</p>
+
+  <h3>② 中文拼寫糾錯（CSC）：BERT 時代 → LLM 當純語言模型打分</h3>
+  <p>BERT 系（SoftMasked、SpellGCN、PLOME、SCOPE、ReLM）擅長等長替換，但 LEMON（ACL 2023）指出它們「過擬合錯誤模型、欠擬合語言模型」。2024 年後出現兩條路：一是 C-LLM（EMNLP 2024）發現 tokenizer 的多字 token 是 LLM 做字級糾錯的瓶頸；二是 Zhou et al.（EMNLP 2024）不訓練、不寫 prompt，把 LLM 當純 LM 再配一個「失真模型」做 noisy-channel 搜尋，Qwen1.5 0.5B–1.8B 就很有效。MSLLM（ACL 2025）再把「小模型＋LLM」用熵加權在解碼期融合，0.5B LLM 就拿到大部分收益。2026 年的 CEC-Zero、CSRP 則轉向 RL，並用獎勵懲罰不必要的編輯。</p>
+
+  <h3>③ LLM 輸入法：讓 LLM「生成」很差，讓它「打分」很好</h3>
+  <p>PinyinGPT（ACL 2022）證明凍結的 GPT 加上讀音限制就能做到商用水準。訊飛 GeneInput（2023）用 2.6B 模型直接吃有雜訊的按鍵，P@1 是 75.2%，Google IME 是 55.2%。LREC 2026 的 LLM-IME benchmark 則顯示，用 prompt 讓本地 3B 模型端到端把拼音轉成字，CER 高達 0.746，macOS 拼音只有 0.085。作者自承「沒有測『快速引擎產生候選＋LLM 重排』這種管線」，而這正是本報告實測的做法。2026 年社群已有 Apple Silicon 上的注音前例：McBopomofoLM（25M encoder＋60M decoder 跑在 ANE）、SlothLM-E（12M）、善解（14M 字級 LM；試過 Qwen3-1.7B，因每個候選要 510–640 ms 而放棄）。日文 azooKey/Zenzai（NLP2025）則已在 macOS 出貨「詞典 lattice 當草稿、95M 小 LM 驗證」的架構，每輸入一字只需數 ms。</p>
+
+  <h3>④ 降低延遲：把「生成」改成「驗證/打分」，把快取做滿</h3>
+  <p>輸出約等於輸入的任務，最佳草稿就是原文本身：SAD/IAD（8–12 倍）、Prompt Lookup Decoding、LLMA、CopySpec 與 PLD+（2025）、AdaEdit（ACL 2026，自適應 diff 輸出）。增量推論方面有前綴 KV 快取（Prompt Cache、vLLM APC、SGLang RadixAttention）。2026 年的研究也提醒：中段被編輯時要截斷重算，只 patch 被改的字的 KV 是錯的（PatchKV 等）。多個候選共用前綴時，可以用 tree attention 或 batch 一次打分（SpecInfer）。架構上可對照 two-pass 串流語音辨識（Interspeech 2019）：快速第一階段即時出字，第二階段在邊界重打分。顯示穩定性可參考同步翻譯的 re-translation 研究（erasure 指標、masking/biasing）。</p>
+
+  <h3>⑤ Apple 平台（2026）：MLX、Core AI、Foundation Models 的取捨</h3>
+  <p>M4 上 prefill 受算力限制、decode 受 120 GB/s 頻寬限制（Apple 官方說法）。所以 &lt;1B 模型「一次 forward 打 16–64 個 token」的成本約等於 1–2 次 decode，也就是說打分比生成划算。macOS 27 新增的 Core AI 可以跑自訓小模型；系統 Foundation Models（AFM ~3B）沒有 logprob API，在「背景程序＋電池」時還會被 rate limit，所以不適合逐鍵使用。ANE 在社群實測中 TTFT 為 171–665 ms，適合常駐低功耗的小 encoder，不適合每鍵跑 LLM。</p>
+</section>
+
+<section id="papers">
+  <h2>精選論文</h2>
+  <p class="muted small">依「對本專案的價值」排序。「結果」欄是論文宣稱；「侷限」與「可利用的突破口」含我的評估。經典文獻標「背景」。</p>
+
+  <div class="card">
+    <h3><a href="https://arxiv.org/abs/2506.06887" target="_blank">Mixture of Small and Large Models for Chinese Spelling Check（MSLLM）</a></h3>
+    <div class="badges"><span class="badge venue">ACL 2025</span><span class="badge">#CSC</span><span class="badge">#小模型×LLM融合</span></div>
+    <dl class="kv">
+      <dt>問題</dt><dd>微調小模型準但會過擬合編輯模式；LLM 流暢但不精準、也難微調。兩者能否兼得？</dd>
+      <dt>核心想法</dt><dd>束搜尋時把三種分數相加：LLM log 機率 + (1+H<sub>LLM</sub>)·(α·log 失真模型 + β·log 小模型)。LLM 越不確定（熵越高），就越倚重小模型與失真模型。LLM 不需微調，換領域只需換小模型。</dd>
+      <dt>結果</dt><dd>ReLM+LLM 句級 F1：rSIGHAN 71.8→74.4、ECSpell 92.3→97.1、LEMON 平均 +10.4。<b>只用 Qwen2.5-0.5B 就拿到大部分收益</b>，同家族更大的模型不一定更好。延遲（A100、束寬 12）：BERT 13.7 ms、LLM 1,276 ms/句。</dd>
+      <dt>為什麼重要</dt><dd>給出「小模型＋LLM 熵自適應融合」的明確公式，等於直接規定了 IME 的分數融合方式。</dd>
+      <dt>侷限</dt><dd class="muted">延遲是伺服器 GPU 上整句解碼的數字；沒有增量化；簡體。</dd>
+      <dt>可利用的突破口</dt><dd>把「小模型」換成注音詞典 lattice 加通道模型，熵 H 拿來當「要不要呼叫 LLM」的門控，既省電又降延遲。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h3><a href="https://arxiv.org/abs/2410.04027" target="_blank">A Simple yet Effective Training-free Prompt-free Approach to Chinese Spelling Correction Based on Large Language Models</a></h3>
+    <div class="badges"><span class="badge venue">EMNLP 2024</span><span class="badge">#CSC</span><span class="badge">#noisy-channel</span><span class="badge">#training-free</span></div>
+    <dl class="kv">
+      <dt>問題</dt><dd>能不能不微調、不寫 prompt，就讓 LLM 做好拼寫糾錯？</dd>
+      <dt>核心想法</dt><dd>LLM 當純左到右 LM，每步分數 = log P<sub>LLM</sub> + log P<sub>失真</sub>（相同 0.962／同音 0.023／近音 0.008／形近 0.004）。另加長度獎勵（抵銷多字 token 的劣勢）與熵加權忠實度獎勵（LLM 不確定時更信任原文）。</dd>
+      <dt>結果</dt><dd>Baichuan2-13B 全面勝過用 34M 合成資料訓練的通用 BERT；<b>Qwen1.5-0.5B 就有 Sighans 56.3、ECSpell-Odw 84.7</b>；超過 1.8B 後收益很小。</dd>
+      <dt>為什麼重要</dt><dd>這本質上就是 IME 的 noisy-channel 解碼，只是輸入是字而不是注音。它證明 0.5–1.8B 已經夠用。</dd>
+      <dt>侷限</dt><dd class="muted">只處理替換；整句束搜尋成本高，作者建議再做量化與蒸餾。</dd>
+      <dt>可利用的突破口</dt><dd>把失真模型換成「注音鍵盤鄰鍵＋模糊音＋聲調」的通道模型，搜尋空間換成 IME lattice。本報告的 PoC 就是這個移植。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h3><a href="https://aclanthology.org/2026.lrec-1.337/" target="_blank">Benchmarking Large Language Models for Chinese and Japanese IMEs: Phonetic-to-Character Generation and Textual Error Correction</a></h3>
+    <div class="badges"><span class="badge venue">LREC 2026</span><span class="badge">#IME</span><span class="badge">#benchmark</span></div>
+    <dl class="kv">
+      <dt>問題</dt><dd>LLM 能不能直接當 IME 的「拼音→漢字」引擎與錯誤修正器？</dd>
+      <dt>核心想法</dt><dd>用 zero/few-shot prompt 讓 LLM 端到端轉換，並修正兩類錯誤：拼音按鍵錯（漏鍵、多鍵、鄰鍵、顛倒）與同音選字錯。對照組是 macOS 拼音、HMM/DAG 與 pycorrector。</dd>
+      <dt>結果</dt><dd>句子級拼音→漢字 CER：GPT-4 0.047、macOS 拼音 0.085、<b>本地 Llama3.2-3B 0.746</b>；拼音錯誤修正時 Llama3.2-3B 的 CER 為 1.006。</dd>
+      <dt>為什麼重要</dt><dd>同儕審查的證據：讓小 LLM「生成」轉換結果是最差用法。</dd>
+      <dt>侷限</dt><dd class="muted">作者自承只測端到端，<b>沒測「快速引擎產生候選＋LLM 重排」</b>；錯誤為合成；只有簡體與拼音。</dd>
+      <dt>可利用的突破口</dt><dd>補上它沒做的管線比較（本報告的 PoC 已做初步版本），並延伸到注音與繁體，正好是一個缺口。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h3><a href="https://www.anlp.jp/proceedings/annual_meeting/2025/pdf_dir/P1-19.pdf" target="_blank">ニューラルかな漢字変換システム Zenzai（Neural Kana-Kanji Conversion System Zenzai）</a></h3>
+    <div class="badges"><span class="badge venue">NLP2025（日本言語処理学会年次大会）</span><span class="badge award">已在 macOS 出貨（azooKey）</span><span class="badge">#IME</span><span class="badge">#驗證式解碼</span></div>
+    <dl class="kv">
+      <dt>問題</dt><dd>神經轉換精度高但慢，IME 又必須本機、即時，還要保證輸出忠於讀音。</dd>
+      <dt>核心想法</dt><dd>把傳統 n-gram 詞典 lattice 當 speculative decoding 的草稿：小 GPT-2 用一次 forward 平行驗證草稿的每個 token。不符時，把「通過的前綴＋LM 的 argmax」當制約送回 lattice 重搜。最終輸出一定來自詞典，所以能防幻覺、防過度修正。另設推論次數上限 L。</dd>
+      <dt>結果</dt><dd>Acc@1：Google 日本語入力 54.0%、統計式草稿 44.5%、<b>Zenzai 26M/91M/310M = 66.5/80.0/86.5%</b>。在 M2 Pro GPU 上<b>每輸入一字平均 3.5–6.9 ms</b>（310M 不加 SD 是 26.4 ms，加 SD 後 6.9 ms）。</dd>
+      <dt>為什麼重要</dt><dd>最接近本專案的「已上線」前例：同為 IMK、本機小 LM、即時。注音→漢字與かな→漢字同構。</dd>
+      <dt>侷限</dt><dd class="muted">讀音被視為正確，不處理打錯鍵；詞典缺詞時會拒絕 LM 的正確答案（過度忠實）；評估集只有 200 筆。</dd>
+      <dt>可利用的突破口</dt><dd>讓草稿端多產生「讀音鄰近變體」（鍵盤鄰鍵、模糊音），LM 只在其中挑選，把 Zenzai 從「轉換」延伸到「糾錯」。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h3><a href="https://aclanthology.org/P14-1142/" target="_blank">A Joint Graph Model for Pinyin-to-Chinese Conversion with Typo Correction</a></h3>
+    <div class="badges"><span class="badge venue">ACL 2014</span><span class="badge">背景</span><span class="badge">#IME</span><span class="badge">#joint-decoding</span></div>
+    <dl class="kv">
+      <dt>問題</dt><dd>拼音切分、打錯修正、轉換分開做時，錯誤會級聯放大。</dd>
+      <dt>核心想法</dt><dd>把三者放進同一張圖，用 K-shortest paths（K=20）做全域最佳化。</dd>
+      <dt>結果</dt><dd>無錯輸入時句正確率 48.87%。<b>只要 2% 按鍵錯誤，不容錯的 IME 就掉到 11.12%</b>（Google Input Tools 11.08%），聯合模型拉回 40.69%。</dd>
+      <dt>為什麼重要</dt><dd>最清楚的量化證據：只要一點點打錯，不容錯的整句 IME 就崩潰，<b>容錯必須在組字期與轉換聯合做</b>。</dd>
+      <dt>侷限</dt><dd class="muted">n-gram LM；錯誤是隨機模擬。</dd>
+      <dt>可利用的突破口</dt><dd>用 LLM 取代 n-gram 當聯合解碼的 LM。本報告 PoC 的「容錯＋LLM」即此路線，有打錯時句正確率從 52% 提升到 75–80%。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h3><a href="https://arxiv.org/abs/2311.01166" target="_blank">Generative Input: Towards Next-Generation Input Methods Paradigm（GeneInput，訊飛）</a></h3>
+    <div class="badges"><span class="badge venue">arXiv 2023（產業）</span><span class="badge">#IME</span><span class="badge">#noisy-keystroke</span><span class="badge">#RLHF</span></div>
+    <dl class="kv">
+      <dt>問題</dt><dd>現有神經 IME 都假設拼音正確，處理不了真實的雜訊按鍵，也不會從使用者回饋中學習。</dd>
+      <dt>核心想法</dt><dd>2.6B 模型直接吃原始按鍵（26 鍵、9 鍵），先預測拼音切分再生成漢字。用「使用者選了哪個候選」自動產生獎勵，做 RLHF。</dd>
+      <dt>結果</dt><dd>有雜訊的 26 鍵輸入 P@1：<b>75.2% vs Google IME 55.2%</b>；用 prompt 讓 GPT-4 做只有 18.1%。</dd>
+      <dt>為什麼重要</dt><dd>產業界「LLM 吃雜訊按鍵」的最強證據；「是否選中候選」是免標註的偏好訊號。</dd>
+      <dt>侷限</dt><dd class="muted">沒有延遲數字；2.6B 對逐鍵本機推論太重；簡體拼音。</dd>
+      <dt>可利用的突破口</dt><dd>在本機用使用者的撤銷與改選當回饋，個人化通道模型與門檻。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h3><a href="https://arxiv.org/abs/2406.16536" target="_blank">C-LLM: Learn to Check Chinese Spelling Errors Character by Character</a></h3>
+    <div class="badges"><span class="badge venue">EMNLP 2024</span><span class="badge">#CSC</span><span class="badge">#tokenization</span></div>
+    <dl class="kv">
+      <dt>問題</dt><dd>LLM 做 CSC 為什麼常違反「等長」「音近」的限制？</dd>
+      <dt>核心想法</dt><dd>根源在 tokenizer：多字 token 讓字元難以對齊。作者刪掉多字中文 token，讓一字一 token，再持續預訓練並做 SFT。</dd>
+      <dt>結果</dt><dd>CSCD-NS 字級 F1：C-LLM-14B 73.80、SCOPE 71.70、GPT-4 54.41；推論 token 數 +52%、時間 +22%。</dd>
+      <dt>為什麼重要</dt><dd>點出「tokenization 粒度」是 LLM 做字級打分的關鍵瓶頸。</dd>
+      <dt>侷限</dt><dd class="muted">主結果是 7B/14B；≤3B 的效果未能確認。</dd>
+      <dt>可利用的突破口</dt><dd>IME 是比較「整條候選路徑」的機率，不必強制字級對齊；但要注意每種 tokenizer 的「中文字/token」效率。本機實測（繁中句子）：Qwen3 1.39、Gemma 3 1.45、Qwen3.5 1.63、LFM2 只有 1.01，同一句話 LFM2 要多約 40% 的 token，直接影響延遲。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h3><a href="https://arxiv.org/abs/2211.08788" target="_blank">CSCD-NS: a Chinese Spelling Check Dataset for Native Speakers</a></h3>
+    <div class="badges"><span class="badge venue">ACL 2024</span><span class="badge">#dataset</span><span class="badge">#IME-errors</span></div>
+    <dl class="kv">
+      <dt>問題</dt><dd>SIGHAN 來自外籍學習者，不能代表母語者用 IME 打字的錯誤。</dd>
+      <dt>核心想法</dt><dd>4 萬句母語者真實錯誤，並以「模擬 IME 打字」產生 200 萬句偽資料：擾動拼音 → 餵給 IME → 取第 2、3 候選。</dd>
+      <dt>結果</dt><dd><b>超過 97% 的錯誤為同音或近音</b>，詞級錯誤占 49.4%；IME 偽資料讓 F1 約 +10；GPT-4 字級 F1 54.57，BERT 65.75。</dd>
+      <dt>為什麼重要</dt><dd>給出最接近 IME 的錯誤分布，以及可複製的偽資料生成流程。</dd>
+      <dt>侷限</dt><dd class="muted">簡體、全拼，模擬的是「選錯候選」而不是「按錯鍵」；資料授權未確認能否商用。</dd>
+      <dt>可利用的突破口</dt><dd>改用大千鍵盤＋注音錯誤模型擾動，再交給 McBopomofo/libchewing 取第 2、3 候選，就能大量產生繁中注音的偽資料。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h3><a href="https://aclanthology.org/2021.acl-long.462" target="_blank">Instantaneous Grammatical Error Correction with Shallow Aggressive Decoding（SAD）</a></h3>
+    <div class="badges"><span class="badge venue">ACL 2021</span><span class="badge">背景</span><span class="badge">#decoding</span><span class="badge">#lossless</span></div>
+    <dl class="kv">
+      <dt>問題</dt><dd>糾錯輸出大多和輸入相同，逐 token 解碼很浪費。</dd>
+      <dt>核心想法</dt><dd>把輸入當草稿一次平行驗證，直到第一個分歧點，之後 greedy 重解，能對齊回原文時再切回平行模式；輸出與 greedy 完全相同。另搭配深 encoder＋淺 decoder。</dd>
+      <dt>結果</dt><dd>batch=1 時 8–10 倍加速；中文 NLPCC-18 加速 12 倍，F0.5 幾乎不變（29.4 vs 29.6）。</dd>
+      <dt>為什麼重要</dt><dd>它是「以原句為草稿」一脈的源頭（IAD、PLD、LLMA、CopySpec、PLD+）。</dd>
+      <dt>侷限</dt><dd class="muted">錯誤多時加速有限；只在 GPU 上評估 encoder-decoder。</dd>
+      <dt>可利用的突破口</dt><dd>已送出文字的句級校對（L3）就用這個方法：一次 forward 判斷全句，有分歧才 decode。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h3><a href="https://aclanthology.org/2025.bea-1.9/" target="_blank">Adapting LLMs for Minimal-edit Grammatical Error Correction</a></h3>
+    <div class="badges"><span class="badge venue">BEA 2025</span><span class="badge">#over-correction</span><span class="badge">#precision-knob</span></div>
+    <dl class="kv">
+      <dt>問題</dt><dd>decoder-only LLM 偏好流暢改寫。怎麼把它調成「最小編輯」，並控制 precision 與 recall？</dd>
+      <dt>核心想法</dt><dd>(1) 每對「錯→正」再補一對「正→正」，降低資料的錯誤率；(2) 最後階段先只訓練錯誤句，再用更低的 LR 只訓練正確句，用 LR 控制 P/R。</dd>
+      <dt>結果</dt><dd>加入「正→正」後 F0.5 60.3→66.9（P 60.7→71.4）；LR 1e-7→5e-7 時 P 65.9→79.7、R 58.2→24.8。Qwen2.5-1.5B 只有 53.9，Gemma-2-9B 65.9。</dd>
+      <dt>為什麼重要</dt><dd>兩個零成本的保守化技巧，也直接量出小模型做完整 GEC 的品質落差。</dd>
+      <dt>侷限</dt><dd class="muted">LR 極敏感；模型對裝置端太大（作者建議拿來產生蒸餾資料）。</dd>
+      <dt>可利用的突破口</dt><dd>微調我們的打分器時，至少一半樣本是「照抄」；任務收窄為 typo 加封閉類文法。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h3><a href="https://aclanthology.org/2024.bea-1.3" target="_blank">Pillars of Grammatical Error Correction: Comprehensive Inspection of Contemporary Approaches in the Era of Large Language Models</a></h3>
+    <div class="badges"><span class="badge venue">BEA 2024</span><span class="badge">#GEC</span><span class="badge">#LLM-over-correction</span></div>
+    <dl class="kv">
+      <dt>問題</dt><dd>LLM 時代各類 GEC 方法的實際排名如何？</dd>
+      <dt>核心想法</dt><dd>在相同基準上系統比較 zero-shot LLM、微調 LLM、seq2seq、tagging 與 ensemble。</dd>
+      <dt>結果</dt><dd>zero-shot LLM 全都過度修正：GPT-4-ZS CoNLL-14 F0.5 只有 58.2；<b>約 300M 的 GECToR 有 66.0</b>；模型放大 10–50 倍只多 1–2 點。</dd>
+      <dt>為什麼重要</dt><dd>量化證明「別用 prompt 叫通用 LLM 改句子」，資料品質比模型大小重要。</dd>
+      <dt>侷限</dt><dd class="muted">沒評估速度；資料是學習者作文。</dd>
+      <dt>可利用的突破口</dt><dd>多系統共識可以當成「要不要自動套用」的信心訊號。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h3><a href="https://aclanthology.org/2024.acl-demos.27/" target="_blank">Proofread: Fixes All Errors with One Tap（Gboard）</a></h3>
+    <div class="badges"><span class="badge venue">ACL 2024 Demo</span><span class="badge">#industry</span><span class="badge">#keyboard</span></div>
+    <dl class="kv">
+      <dt>問題</dt><dd>打字快的人不想逐字檢查；現有修正只處理短距 typo。</dd>
+      <dt>核心想法</dt><dd>伺服器端 PaLM2-XS，經 SFT（先 rewrite 再 proofread）＋RL；合成鍵盤雜訊 6 類（漏打、多打、顛倒、雙擊、少打雙字母、位置誤差）。</dd>
+      <dt>結果</dt><dd>good ratio 85.56%；靠 speculative decoding，median 延遲由 314 ms 降到 191 ms（TPU v5e）。</dd>
+      <dt>為什麼重要</dt><dd>大廠的整句 LLM 修正仍是「使用者一鍵觸發」，不是逐鍵自動；它的合成雜訊清單可以直接沿用。</dd>
+      <dt>侷限</dt><dd class="muted">雲端執行；約 14% 的 bad ratio 若用在自動替換是無法接受的。</dd>
+      <dt>可利用的突破口</dt><dd>句級 LLM 修正設計成按需功能（L4），不放進逐鍵路徑。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h3><a href="https://userinterfaces.aalto.fi/136Mkeystrokes/" target="_blank">Observations on Typing from 136 Million Keystrokes</a></h3>
+    <div class="badges"><span class="badge venue">CHI 2018</span><span class="badge award">Best Paper Honorable Mention</span><span class="badge">背景</span><span class="badge">#HCI</span></div>
+    <dl class="kv">
+      <dt>問題</dt><dd>一般人在實體鍵盤上的速度、錯誤與修正行為如何？</dd>
+      <dt>核心想法</dt><dd>16.9 萬人、1.37 億次按鍵的時序資料。</dd>
+      <dt>結果</dt><dd>平均按鍵間隔 239 ms，<b>快手約 120 ms</b>，下界約 60 ms；Backspace 占 6.3%；最後只剩 1.17% 錯誤；substitution 最多；rollover 平均 25%，快手 50%。</dd>
+      <dt>為什麼重要</dt><dd>定下延遲預算的上限（兩鍵之間 120 ms），也是實體鍵盤錯誤模型的數據基礎。</dd>
+      <dt>侷限</dt><dd class="muted">抄打任務；資料僅限研究與非商用。</dd>
+      <dt>可利用的突破口</dt><dd>按鍵時序（IKI、rollover、按壓時長）可以當作錯誤的「軟證據」（見跨領域靈感）。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h3><a href="https://epub.uni-regensburg.de/55007/1/text-input-latency.pdf" target="_blank">Effects of Text Input Latency on Performance and Task Load</a></h3>
+    <div class="badges"><span class="badge venue">MUM 2023</span><span class="badge">#HCI</span><span class="badge">#latency</span></div>
+    <dl class="kv">
+      <dt>問題</dt><dd>實體鍵盤的端到端延遲對打字與修改有什麼影響？</dd>
+      <dt>核心想法</dt><dd>31 人、240 Hz 螢幕，比較 20 ms 與 200 ms 兩種延遲。</dd>
+      <dt>結果</dt><dd>抄打速度沒有顯著差異，但挫折感顯著上升（p=.004）；<b>修正任務變慢 20%（38.9→46.5 s，d=1.67）</b>；20/31 人察覺到延遲。</dd>
+      <dt>為什麼重要</dt><dd>會打字的人能用盲打掩蓋延遲，但「修改/接受建議」這類編輯迴圈對延遲最敏感。</dd>
+      <dt>侷限</dt><dd class="muted">只有兩個延遲水準，量不出門檻。</dd>
+      <dt>可利用的突破口</dt><dd>撤銷 AI 修正必須是本地、零推論的即時操作；回顯路徑絕不能等 LLM。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h3><a href="https://arxiv.org/abs/1908.10992" target="_blank">Two-Pass End-to-End Speech Recognition</a></h3>
+    <div class="badges"><span class="badge venue">Interspeech 2019</span><span class="badge">背景</span><span class="badge">#架構類比</span></div>
+    <dl class="kv">
+      <dt>問題</dt><dd>串流模型夠快但品質不夠，非串流模型品質好但延遲高。</dd>
+      <dt>核心想法</dt><dd>第一階段 RNN-T 即時出字；在邊界由第二階段 LAS 對 top-K 重打分（rescoring 比 beam search 穩）。</dd>
+      <dt>結果</dt><dd>相對 WER 降 17–22%，延遲只增加一小部分；後續 Deliberation 再降 12%。</dd>
+      <dt>為什麼重要</dt><dd>「快引擎即時顯示＋重模型在邊界重排」的經典範式，可直接對應到「注音 lattice ＋ LLM」。</dd>
+      <dt>侷限</dt><dd class="muted">語音領域。</dd>
+      <dt>可利用的突破口</dt><dd>第二階段做 rescoring 而不是 generation；只在音節完成或停頓時觸發。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h3><a href="https://arxiv.org/abs/2004.03643" target="_blank">Re-translation versus Streaming for Simultaneous Translation</a></h3>
+    <div class="badges"><span class="badge venue">IWSLT 2020</span><span class="badge">背景</span><span class="badge">#顯示穩定性</span></div>
+    <dl class="kv">
+      <dt>問題</dt><dd>每來一個輸入就整段重算，畫面會一直改寫閃爍。</dd>
+      <dt>核心想法</dt><dd>用 erasure（被抹除重寫的 token 數）衡量不穩定；推論時用 masking（暫不顯示尾端）與 biasing（偏向沿用上次輸出）來穩定。</dd>
+      <dt>結果</dt><dd>低 erasure 下，re-translation 的品質不輸最佳串流系統。</dd>
+      <dt>為什麼重要</dt><dd>給 IME 一個可量化的「閃爍」指標與兩個現成技巧。</dd>
+      <dt>侷限</dt><dd class="muted">翻譯領域。</dd>
+      <dt>可利用的突破口</dt><dd>把 erasure 列為 IME 的正式評測指標：同一組字段落，AI 最多改一次。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h3><a href="https://arxiv.org/abs/2604.27296" target="_blank">To Diff or Not to Diff? Structure-Aware and Adaptive Output Formats for Efficient LLM-based Code Editing（AdaEdit）</a></h3>
+    <div class="badges"><span class="badge venue">ACL 2026 Findings</span><span class="badge">#edit-format</span></div>
+    <dl class="kv">
+      <dt>問題</dt><dd>讓 LLM 輸出完整結果很慢，但傳統 diff 對 LLM 又不自然。</dd>
+      <dt>核心想法</dt><dd>結構感知的區塊 diff，並訓練模型自適應選擇「diff 或完整輸出」中 token 較少的一種。</dd>
+      <dt>結果</dt><dd>準確度與完整輸出相當，延遲與成本降低超過 30%。</dd>
+      <dt>為什麼重要</dt><dd>2026 年最直接討論「編輯輸出格式 vs 延遲」的論文。</dd>
+      <dt>侷限</dt><dd class="muted">領域是程式碼；第三方評論認為消融不足。</dd>
+      <dt>可利用的突破口</dt><dd>句級校對先輸出 1 個「需不需要改」的 token，無錯即結束，有錯才輸出位置與替換。</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="precedents">
+  <h2>產品與開源前例</h2>
+  <p>同一件事已經有人做過哪些、踩過哪些坑。數字照原文，單位與定義不同，不可直接互比。</p>
+
+  <h3>A. 「小模型進入輸入法主路徑」的前例與實測延遲</h3>
+  <div class="tbl-wrap"><table>
+    <tr><th>系統</th><th>任務／LLM 角色</th><th>模型</th><th>延遲（原文定義）</th><th>硬體</th><th>教訓</th></tr>
+    <tr class="hl"><td><a href="https://github.com/azooKey/azooKey-Desktop" target="_blank">azooKey on macOS＋Zenzai</a>（日文，IMK，MIT）</td><td>詞典 lattice 當草稿，小 LM 一次 forward 驗證</td><td>zenz-v3.2 95M、Q5_K_M 73.9 MB</td><td>每輸入一字 3.5–6.9 ms（論文）；10.8→7.2 ms/request（讀碼）</td><td>M2 Pro</td><td>2026 年把推論搬到 XPC 程序後，終端機第一個字重複（#357）、模型洩漏累積到 15.7 GB（#347）、輸入凍結數秒（#380）→ <b>IME 程序內必須保留同步快速路徑</b></td></tr>
+    <tr class="hl"><td><a href="https://github.com/vieenrose/sloth-zhuyin-linux" target="_blank">樹懶注音 sloth-zhuyin</a></td><td>注音整句轉換＋錯字修復（每鍵）</td><td>12M 三值 encoder（9.7 MB）</td><td>6 音節一次 9.3 ms</td><td>Snapdragon 662（手機 CPU）</td><td>每個位置只在合法讀音字中選；訓練噪聲限定<b>大千 8 鄰鍵</b>。無授權檔，不可直接重用</td></tr>
+    <tr><td><a href="https://github.com/workfunction/McBopomofoLM" target="_blank">McBopomofoLM</a>（小麥注音 fork）</td><td>每音節 encoder 打分，多候選競爭時 decoder 裁決</td><td>~25M encoder＋~60M decoder（Core ML/ANE）</td><td>未公開；常駐 100–200 MB；30 分鐘打字約耗 40 秒 CPU</td><td>Apple Silicon</td><td>自報字準 95.25→96.55%、句準 70.4→79.1%；「只在有把握時改字」</td></tr>
+    <tr><td><a href="https://github.com/Nanako0129/shanjie" target="_blank">善解 shanjie</a></td><td>bigram 整句候選 → 14.4M 字級 LM 重排前 8 名</td><td>14.4M；試過 Qwen3-1.7B</td><td><b>Qwen3-1.7B 每個候選 p95 510–640 ms → 放棄</b></td><td>Apple Silicon</td><td>1.7B 收益不顯著（87.2 vs 84.4%，p=0.081）；Apple 系統模型反而下降。主因是逐候選重算、沒批次也沒快取</td></tr>
+    <tr><td><a href="https://github.com/zhanghaozhecn/rime-llm-rerank" target="_blank">rime-llm-rerank</a></td><td>每鍵為 Rime 候選打分（不生成）</td><td>Qwen3.5-0.8B Q4_K_M</td><td>約 43 ms/鍵（文脈已預處理）、80 ms（未預處理）、274 ms（天真做法）</td><td>Windows CPU</td><td><b>換 2B 只多 0.3 分，延遲卻 3 倍</b>；commit 時先預處理文脈</td></tr>
+    <tr><td><a href="https://github.com/nilava/TabType" target="_blank">TabType</a>（AX 路線開源）</td><td>ghost-text 續寫＋詞界 SymSpell typo 修正</td><td>Qwen3 0.6B／1.7B／4B</td><td>p50 23／44／104 ms</td><td>未註明</td><td>AX 路線要大量 per-app hack（Electron 游標落後 0.3–0.5 s、截圖比字型）；GenerationGate 可取消過期工作</td></tr>
+    <tr><td>Apple 鍵盤 autocorrect（iOS 17／macOS 14+）</td><td>詞級自動替換＋inline 預測</td><td>~34M GPT-2 式（第三方逆向）</td><td>未公開</td><td>Apple Silicon（CPU/ANE 兩版）</td><td>替換後短暫底線、點一下還原、從還原學習；Safari 與 Electron 不支援 inline 預測</td></tr>
+    <tr><td>Gboard 端側文法（Pixel 6）</td><td>句級 GEC，只畫底線</td><td>20 MB seq2seq int8</td><td>60 字元 &lt;22 ms</td><td>手機 CPU</td><td>用未完成句（前綴）訓練；大模型蒸餾</td></tr>
+    <tr><td>Grammarly 端側</td><td>拼字＋文法</td><td>T5 &lt;300 MB；另有 ~1B 4-bit</td><td>建議 &lt;100 ms；1B 約 210 tok/s</td><td>Mac（MLX）</td><td>INT4 對 T5 品質不夠，改 BF16</td></tr>
+  </table></div>
+
+  <h3>B. 可以借用的注音/輸入法引擎（授權很重要）</h3>
+  <div class="tbl-wrap"><table>
+    <tr><th>專案</th><th>語言／授權</th><th>可借用的部分</th><th>注意</th></tr>
+    <tr class="hl"><td><a href="https://github.com/openvanilla/McBopomofo" target="_blank">McBopomofo 小麥注音</a></td><td>Swift＋C++，<b>MIT</b></td><td>Gramambular2 lattice（DAG、unigram、最大跨度 8）、IMK 實作、候選窗、Info.plist</td><td>詞頻語料未公開；沒有錯字更正</td></tr>
+    <tr><td><a href="https://github.com/vChewing/vChewing-macOS" target="_blank">vChewing 唯音</a></td><td>Swift，MulanPSL-2.0／LGPL-3.0+</td><td>Tekkon「自動糾正讀音組合」規則（ㄅㄨㄥ→ㄅㄥ…）、最詳盡的 IMK 怪癖紀錄、記憶體自保、per-app 策略</td><td><b>詞頻資料限非商用</b></td></tr>
+    <tr><td><a href="https://github.com/chewing/libchewing" target="_blank">libchewing 新酷音</a></td><td>Rust，LGPL-2.1+</td><td>Yen's 演算法 10-best（天然 N-best）、FUZZY_CHEWING 前綴容錯、<code>tsi.csv</code> 16 萬詞（本報告 PoC 使用）</td><td>LGPL 對閉源產品需留意</td></tr>
+    <tr><td><a href="https://github.com/rime/squirrel" target="_blank">Squirrel 鼠鬚管</a></td><td>GPLv3</td><td>per-app 策略表、終端機 U+3000 佔位、macOS 26 deactivate 補救、簽章/公證流程</td><td>GPL</td></tr>
+    <tr><td><a href="https://github.com/dongyuwei/hallelujahIM" target="_blank">hallelujahIM</a></td><td>GPLv3</td><td>「英文單字放在 marked text、空白鍵才 commit」的先例</td><td>每個字都有底線，改變了使用習慣</td></tr>
+    <tr><td><a href="https://github.com/MicroZ-LLC/AllInOneIME" target="_blank">AllInOneIME</a></td><td>FSL-1.1-ALv2</td><td><b>驗證後才替換已送出文字</b>：游標在剛打的字尾端、讀回內容一致才用 replacementRange；終端機永不；失敗的 app 加入黑名單</td><td>—</td></tr>
+    <tr><td><a href="https://github.com/madeye/ds-input" target="_blank">ds-input</a></td><td>MIT</td><td>踩坑紀錄：bundle ID 與每個 TISInputSourceID 都要含 <code>.inputmethod.</code>，否則註冊成功但永遠不出現；必須用 Developer ID 簽章</td><td>—</td></tr>
+  </table></div>
+
+  <div class="callout ok"><b>市場缺口：</b>Apple 內建「拼音」有「更正拼字」「更正模糊拼音」選項，<b>「注音」沒有任何容錯或自動校正選項</b>（Apple 支援文件；本機 TCIM 設定 nib 亦證實）。macOS 上也找不到公開的「LLM 注音糾錯」輸入法。</div>
+</section>
+
+<section id="bench">
+  <h2>本機實測（MacBook Air M4）</h2>
+  <p>目的是在你這台機器上回答三個問題：(1) 本地小 LLM 真的能讓注音輸入更準嗎？(2) 能快到「幾乎 0 延遲」嗎？(3) 英文自動更正會不會亂改？程式與原始結果都在本工作資料夾的 <code>bench/</code>（<code>zh_poc.py</code>、<code>zh_eval.py</code>、<code>zh_incremental.py</code>、<code>en_poc.py</code>、<code>latency_bench.py</code>、<code>results/</code>）。</p>
+
+  <h3>6.1 測試設定</h3>
+  <ul class="small">
+    <li><b>硬體與執行環境</b>：MacBook Air M4（10 核 CPU、無風扇）、16 GB、macOS 27.0.1；MLX 0.32.4、mlx-lm 0.32.2、Python 3.13；對照組 llama.cpp 0.7.0（Homebrew，Metal）。</li>
+    <li><b>注音引擎（基線）</b>：以 libchewing <code>tsi.csv</code>（16 萬詞，含頻率）建 unigram lattice，beam 取 K-best（等同傳統詞頻引擎）。</li>
+    <li><b>容錯</b>：每個輸入音節展開成鄰近音節（大千 8 鄰鍵、相鄰聲調鍵、其他聲調、台灣合併音），帶第 7.4 節的懲罰。</li>
+    <li><b>LLM 打分</b>：分數 = log P<sub>LLM</sub>(候選｜左文) + 通道懲罰 + w·詞頻；免訓練（直接拿 Base/Instruct 權重）。</li>
+    <li><b>測試資料</b>：我撰寫的 100 句台灣日常中文（訊息、工作、生活；刻意含 在/再、的/得/地、以/已 等易混字），按標點切成 138 個組字片段、1,563 字。讀音由 libchewing 詞庫＋pypinyin＋輕聲規則自動產生。每個片段注入 1 個按鍵錯誤（聲調 40%、鄰鍵 35%、口音合併 25%），其中 40% 產生「不合法音節」，60% 產生「合法但錯的音節」（只有 LM 抓得到）。</li>
+    <li><b>英文</b>：我撰寫的 100 句日常英文（每句注入 1 個實體鍵盤錯誤：鄰鍵替換、漏打、多打、顛倒、雙字母），另有 10 句含技術詞與俚語的乾淨句子（kubectl、npm、boba、metasurfaces、tmrw…），專門測「會不會亂改」。</li>
+  </ul>
+  <div class="callout">這是 PoC 等級的測試：句子少、錯誤是合成的、句子由我撰寫。請看「相對差異與數量級」，不要當成正式 benchmark。正式評測規劃在第 11 節。</div>
+
+  <h3>6.2 中文：各模型比較（固定設定 K=8、詞頻權重 w=0.5，不替個別模型挑最佳參數）</h3>
+  <div class="tbl-wrap"><table class="small">
+    <tr><th>模型（MLX）</th><th>架構</th><th class="num">權重</th><th class="num">中文字/token</th><th class="num">乾淨輸入<br>字準確率</th><th class="num">乾淨<br>整段正確</th><th class="num">有錯字<br>字準確率</th><th class="num">有錯字<br>整段正確</th><th class="num">錯字救回</th><th class="num">修好/改壞<br>（有錯字）</th><th class="num">8 候選打分<br>p50（依序測）</th></tr>
+    <tr><td>傳統 lattice（不容錯）</td><td>—</td><td class="num">—</td><td class="num">—</td><td class="num">96.48%</td><td class="num">67.4%</td><td class="num">85.86%</td><td class="num">0.7%</td><td class="num">2.2%</td><td class="num">—</td><td class="num">&lt;1 ms</td></tr>
+    <tr><td>容錯 lattice（無 LLM）</td><td>—</td><td class="num">—</td><td class="num">—</td><td class="num">96.29%</td><td class="num">66.7%</td><td class="num">94.11%</td><td class="num">52.2%</td><td class="num">75.4%</td><td class="num">—</td><td class="num">&lt;1 ms</td></tr>
+    <tr><td>Gemma 3 270M 4-bit</td><td>純 attention（滑動視窗）</td><td class="num">247 MB</td><td class="num">1.45</td><td class="num">97.76%</td><td class="num">78.3%</td><td class="num">96.23%</td><td class="num">66.7%</td><td class="num">84.8%</td><td class="num">30/10</td><td class="num">28 ms</td></tr>
+    <tr><td>LFM2 350M 4-bit</td><td>hybrid（conv）</td><td class="num">199 MB</td><td class="num">1.01</td><td class="num">97.31%</td><td class="num">76.1%</td><td class="num">95.65%</td><td class="num">65.9%</td><td class="num">81.9%</td><td class="num">30/11</td><td class="num">72 ms</td></tr>
+    <tr class="hl"><td>Qwen3-0.6B Base 4-bit ★</td><td>純 attention</td><td class="num">335 MB</td><td class="num">1.39</td><td class="num">98.27%</td><td class="num">84.1%</td><td class="num">96.67%</td><td class="num">73.2%</td><td class="num">85.5%</td><td class="num">36/7</td><td class="num">58 ms</td></tr>
+    <tr><td>Qwen3-0.6B 4-bit</td><td>純 attention</td><td class="num">335 MB</td><td class="num">1.39</td><td class="num">98.21%</td><td class="num">82.6%</td><td class="num">96.61%</td><td class="num">70.3%</td><td class="num">85.5%</td><td class="num">32/7</td><td class="num">59 ms</td></tr>
+    <tr><td>Qwen3-0.6B 8-bit</td><td>純 attention</td><td class="num">633 MB</td><td class="num">1.39</td><td class="num">98.40%</td><td class="num">85.5%</td><td class="num">96.80%</td><td class="num">72.5%</td><td class="num">84.8%</td><td class="num">33/5</td><td class="num">90 ms</td></tr>
+    <tr><td>Qwen3.5-0.8B 4-bit</td><td>hybrid（DeltaNet）</td><td class="num">424 MB</td><td class="num">1.63</td><td class="num">98.53%</td><td class="num">86.2%</td><td class="num">97.12%</td><td class="num">73.9%</td><td class="num">86.2%</td><td class="num">35/5</td><td class="num">106 ms</td></tr>
+    <tr><td>LFM2.5-1.2B 4-bit</td><td>hybrid（conv）</td><td class="num">659 MB</td><td class="num">1.01</td><td class="num">98.14%</td><td class="num">82.6%</td><td class="num">96.61%</td><td class="num">71.0%</td><td class="num">84.1%</td><td class="num">35/9</td><td class="num">192 ms</td></tr>
+    <tr><td>Qwen3-1.7B 4-bit</td><td>純 attention</td><td class="num">968 MB</td><td class="num">1.39</td><td class="num">98.59%</td><td class="num">87.0%</td><td class="num">96.99%</td><td class="num">74.6%</td><td class="num">86.2%</td><td class="num">35/4</td><td class="num">209 ms</td></tr>
+    <tr><td>Qwen3.5-2B 4-bit</td><td>hybrid（DeltaNet）</td><td class="num">1059 MB</td><td class="num">1.63</td><td class="num">98.59%</td><td class="num">87.7%</td><td class="num">97.06%</td><td class="num">75.4%</td><td class="num">86.2%</td><td class="num">36/4</td><td class="num">230 ms</td></tr>
+  </table></div>
+  <p class="small muted">「修好/改壞」：相對於 lattice 首選，LLM 把錯的片段改對的次數 / 把對的片段改錯的次數（138 段）。「8 候選打分」是 zh_eval 中含文脈 prefill 的單次呼叫，9 個模型依序測量，機器逐漸升溫，越後面的模型越吃虧，公平重測見 6.3。若改用 K=16、不加詞頻先驗，Qwen3-0.6B 的錯字救回可達 90.6%，Qwen3.5-0.8B／1.7B／2B 為 91.3%。</p>
+
+  <figure class="figure" id="fig-pareto">
+    <div class="scroll-x"><div class="fig-inner">
+      <svg id="pareto" viewBox="0 0 760 380" role="img" aria-label="各模型：有錯字時的字準確率 對 8 候選打分延遲"></svg>
+      <div class="chart-tip" id="pareto-tip"></div>
+    </div></div>
+    <figcaption>圖 2：有錯字時的字準確率 vs 8 個候選的打分延遲（冷卻控制的公平重測，Python MLX）。藍＝純 attention，橘＝hybrid（遞迴狀態，退格不能直接回滾）。虛線＝只用容錯 lattice 的準確率。滑鼠移到點上可看數值。往左上越好：Gemma 3 270M 最快；Qwen3-0.6B 與 Qwen3.5-0.8B 在 35–45 ms 一帶，0.8B 準確度最高；1.7B／2B 準確度沒有更好，延遲卻約 2 倍。Python 版只有 Gemma 落在 30 ms 線內，原生化後的預估見 6.4。</figcaption>
+  </figure>
+
+  <h3>6.3 公平重測（每個模型測前都冷卻到 thermalState = nominal）</h3>
+  <div class="tbl-wrap"><table class="small">
+    <tr><th>模型</th><th class="num">追加 1 token<br>（KV 128）</th><th class="num">追加 4 tokens</th><th class="num">8 候選×4 tokens<br>（共享 64 token 前綴）</th><th class="num">32 候選</th><th class="num">生成 1 token</th><th class="num">回滾</th><th class="num">峰值記憶體</th></tr>
+    <tr><td>Gemma 3 270M 4-bit</td><td class="num">3.8 ms</td><td class="num">4.7 ms</td><td class="num">12.6 ms</td><td class="num">45.1 ms</td><td class="num">3.6 ms</td><td class="num">0.022 ms</td><td class="num">770 MB</td></tr>
+    <tr class="hl"><td>Qwen3-0.6B Base 4-bit</td><td class="num">5.8 ms</td><td class="num">7.7 ms</td><td class="num">36.4 ms</td><td class="num">116.2 ms</td><td class="num">5.5 ms</td><td class="num">0.024 ms</td><td class="num">2,117 MB</td></tr>
+    <tr><td>Qwen3-0.6B 8-bit</td><td class="num">12.3 ms</td><td class="num">11.4 ms</td><td class="num">44.6 ms</td><td class="num">127.2 ms</td><td class="num">9.7 ms</td><td class="num">0.030 ms</td><td class="num">2,415 MB</td></tr>
+    <tr><td>Qwen3.5-0.8B 4-bit</td><td class="num">9.3 ms</td><td class="num">10.8 ms</td><td class="num">39.9 ms</td><td class="num">137.7 ms</td><td class="num">8.7 ms</td><td class="num">0.058 ms</td><td class="num">1,861 MB</td></tr>
+    <tr><td>Qwen3-1.7B 4-bit</td><td class="num">14.9 ms</td><td class="num">18.9 ms</td><td class="num">75.0 ms</td><td class="num">277.7 ms</td><td class="num">14.9 ms</td><td class="num">0.038 ms</td><td class="num">2,778 MB</td></tr>
+    <tr><td>Qwen3.5-2B 4-bit</td><td class="num">15.3 ms</td><td class="num">18.5 ms</td><td class="num">67.2 ms</td><td class="num">269.4 ms</td><td class="num">15.5 ms</td><td class="num">0.046 ms</td><td class="num">2,510 MB</td></tr>
+  </table></div>
+
+  <h3>6.4 每音節增量重排（最接近真實輸入法的測試）</h3>
+  <p>模擬打字：每完成一個音節，就把組字區的 K=8 候選交給 LLM 重排。左文 KV 常駐，候選的共同前綴只算一次（<code>zh_incremental.py</code>，Qwen3-0.6B Base 4-bit、容錯模式）。</p>
+  <div class="tbl-wrap"><table class="small">
+    <tr><th>情境</th><th class="num">步數</th><th class="num">p50</th><th class="num">p90</th><th class="num">p99</th><th>說明</th></tr>
+    <tr class="hl"><td>連續計算（無間隔），138 段</td><td class="num">1,563</td><td class="num">31.7 ms</td><td class="num">50.6 ms</td><td class="num">61.8 ms</td><td>整段正確 73.2%（lattice 52.2%）；批次 token 中位數 32</td></tr>
+    <tr><td>同上，但機器已升溫（thermalState=fair）</td><td class="num">1,563</td><td class="num">53.1 ms</td><td class="num">97.6 ms</td><td class="num">171.3 ms</td><td>乾淨輸入；整段正確 84.1%（lattice 67.4%）→ <b>持續負載會降頻，延遲幾乎翻倍</b></td></tr>
+    <tr><td>連續計算，前 30 段（QoS user-interactive）</td><td class="num">313</td><td class="num">28.6 ms</td><td class="num">46.8 ms</td><td class="num">55.2 ms</td><td>下列「打字節奏」的對照組</td></tr>
+    <tr><td>真實打字節奏：每音節間隔 300 ms，前 30 段</td><td class="num">313</td><td class="num">42.8 ms</td><td class="num">62.3 ms</td><td class="num">73.6 ms</td><td>機器全程保持 nominal（不再降頻），但每次閒置後 GPU 要「醒來」，約 +14 ms</td></tr>
+    <tr><td>同上＋空檔中每 100 ms 做 1-token forward「保溫」</td><td class="num">313</td><td class="num">41.6 ms</td><td class="num">63.4 ms</td><td class="num">88.8 ms</td><td>保溫幾乎無效</td></tr>
+    <tr><td>同上＋CPU 忙等（不讓執行緒睡）</td><td class="num">313</td><td class="num">45.1 ms</td><td class="num">65.7 ms</td><td class="num">79.8 ms</td><td>不是 CPU 排程問題，主因在 GPU 端</td></tr>
+    <tr><td>真實打字節奏，前 60 段（預設 QoS）</td><td class="num">664</td><td class="num">49.7 ms</td><td class="num">73.1 ms</td><td class="num">108.1 ms</td><td>前 1/3 與後 1/3 一樣 → 不是熱降頻</td></tr>
+  </table></div>
+  <div class="callout"><b>解讀</b>：Python MLX 版在真實打字節奏下，每音節 p50 約 43–50 ms。這已經比「下一個音節到來」（通常 ≥300 ms）快得多，使用者感覺不到等待，但還沒達到「≤30 ms」的目標。下一節顯示，處理 32 個 token，llama.cpp 約 17 ms、MLX 冷 prefill 約 20 ms，kernel 本身差不多快；我們每步 28.6 ms 中多出的約 10 ms，主要是 Python 端的編排成本（把 KV 複製給 8 個候選、分多次 forward）。所以改用 Swift＋tree attention（一次 forward、不複製 KV），再加上「只重排最後幾個音節」（批次 token 減半）與「聲母一按下就推測打分」（靈感 5），p50 預估可降到 15–25 ms（推估，待 M1 實測）。</div>
+
+  <h3>6.5 原生執行環境對照：llama.cpp（C++／Metal）</h3>
+  <div class="tbl-wrap"><table class="small">
+    <tr><th>Qwen3-0.6B</th><th class="num">8 tokens 一批</th><th class="num">16 tokens</th><th class="num">32 tokens</th><th class="num">64 tokens</th><th class="num">生成 1 token</th></tr>
+    <tr class="hl"><td>llama.cpp GPU，Q4_K_M</td><td class="num">9.5 ms</td><td class="num">14.4 ms</td><td class="num">16.9 ms</td><td class="num">27.5 ms</td><td class="num">6.5 ms</td></tr>
+    <tr><td>llama.cpp GPU，Q8_0</td><td class="num">10.2 ms</td><td class="num">—</td><td class="num">17.0 ms</td><td class="num">—</td><td class="num">7.8 ms</td></tr>
+    <tr><td>llama.cpp CPU（4 執行緒），Q4_K_M</td><td class="num">26.9 ms</td><td class="num">48.6 ms</td><td class="num">96.2 ms</td><td class="num">199 ms</td><td class="num">6.9 ms</td></tr>
+    <tr><td>MLX（Python）4-bit，冷 prefill</td><td class="num">11.6 ms</td><td class="num">16.0 ms</td><td class="num">20.4 ms</td><td class="num">36.0 ms</td><td class="num">5.5 ms</td></tr>
+  </table></div>
+  <p class="small muted">llama-bench 的 pp（prompt processing）換算成「一批所需時間」。CPU 版生成很快（頻寬瓶頸，與 GPU 相當），但「一次打分多個 token」慢 3–6 倍，所以打分工作應放在 GPU。對 30M 以下的專用小模型，CPU 可能就夠快（樹懶注音在手機 CPU 上 9.3 ms）。</p>
+
+  <h3>6.6 英文：詞邊界自動更正（Qwen3-0.6B Base 4-bit）</h3>
+  <div class="tbl-wrap"><table class="small">
+    <tr><th>方法</th><th class="num">錯字修好</th><th class="num">誤改（每千個正確字）</th><th class="num">precision</th><th>說明</th></tr>
+    <tr><td>E0：SymSpell（傳統拼字檢查，無上下文）</td><td class="num">76%</td><td class="num">13.5</td><td class="num">74.5%</td><td>乾淨技術句中會把 repo→rep、npm→pm、async→sync、boba→bob、tweets→sweets、util→until、tmrw→term、onboarding→boarding</td></tr>
+    <tr><td>E1：鍵盤錯誤模型＋詞頻（無上下文）</td><td class="num">83–87%</td><td class="num">11.4–16.6</td><td class="num">77–80%</td><td>保守偏置 δ=0–4</td></tr>
+    <tr class="hl"><td>E2：鍵盤錯誤模型＋LLM 左文（輸入法在詞邊界能做的）</td><td class="num">96%</td><td class="num">0.0</td><td class="num">99.0%</td><td>97 次修改只錯 1 次；kubectl、npm、boba、tmrw 都沒被改</td></tr>
+    <tr><td>E3：再看後面 3 個字（延後決策）</td><td class="num">98%</td><td class="num">0.0–1.0</td><td class="num">99–100%</td><td>需要回頭改已送出的字，只能在可驗證的 app 用</td></tr>
+  </table></div>
+  <p class="small">唯一一次失誤（E2）：<code>decided</code> 漏打成 <code>decide</code>，結果仍是合法單字，只看左文分不出來，E3 看了後文就改對了。所以「真詞誤用」在設計上只給建議，不自動改。這次每次 LLM 呼叫 p50 為 41 ms（含文脈 prefill，未做增量快取），輸入法中改成常駐文脈後，預估約 10–20 ms。</p>
+
+  <h3>6.7 錯誤分析（LLM 還會錯在哪裡）</h3>
+  <ul class="small">
+    <li><b>簡體偏好</b>：雲端→<b>云</b>端、下週五→下<b>周</b>五。Qwen 的訓練語料以簡體為主。加入台灣詞頻先驗（w=0.5–1.0）能修掉一部分，根治要靠繁中 LoRA（階段 B）。</li>
+    <li><b>無法從上下文判斷</b>：他/她、回覆/回復。這是語言本身的歧義，不算模型錯；應該由使用者學習與個人化處理。</li>
+    <li><b>詞典缺詞</b>：筆電→比店/幣店。lattice 沒有好的候選時 LLM 也救不回，因為輸出必定來自詞典。這是 Zenzai 也有的「過度忠實」代價，要靠擴充詞庫解決。</li>
+    <li><b>錯字落在另一個合法詞上</b>：經理→經歷（ㄌㄧˇ→ㄌㄧˋ）。需要更長的上下文，或在 L3 句級校對時再處理。</li>
+  </ul>
+</section>
+
+<section id="design">
+  <h2>系統設計</h2>
+
+  <h3>7.1 八條設計原則</h3>
+  <ol>
+    <li><b>按鍵路徑零 LLM：</b>在 <code>handle(_:client:)</code> 回傳前同步完成組字與 <code>setMarkedText</code>（IME 自身 ≤5 ms）。LLM 永遠非同步、可丟棄（azooKey #357 的教訓：marked text 晚到會讓終端機漏字）。</li>
+    <li><b>打分，不生成：</b>LLM 只為「詞典 lattice 產生的候選（含容錯候選）」打分，輸出必定來自詞典，可防幻覺與過度修正（Zenzai、MSLLM、LREC 2026 的結論）。</li>
+    <li><b>修在 commit 之前：</b>中文直接改寫組字區（類似日文 Live Conversion），所有 app 都支援。英文在詞邊界套用。已送出的文字只在「可驗證」的 app 白名單內才改，終端機永不（IMK SDK：不支援 TSMDocumentAccess 時 replacementRange 會被忽略）。</li>
+    <li><b>精確率優先：</b>原輸入永遠是 baseline；差距超過門檻才改；可一鍵撤銷，並從撤銷中學習（Apple、ATOK、AOSP LatinIME 的共識）。</li>
+    <li><b>原生按鍵：</b>完全照 macOS 內建注音／ABC。AI 功能只借用原生既有語意：⇧Delete「還原上一個替代項目」、候選窗選回原字、英文建議按 Esc 忽略。</li>
+    <li><b>增量與快取：</b>左文 KV 常駐；候選的共同前綴只算一次；退格 O(1) 回滾；commit 時預處理文脈（rime-llm-rerank：43 vs 80 ms）。</li>
+    <li><b>省電：</b>熵門控（lattice 已經很確定就不叫 LLM）、新按鍵到來就取消過期工作、閒置時卸載模型；低電量或高溫時降級。</li>
+    <li><b>隱私：</b>完全本地；密碼欄、Secure Input、<code>com.apple.SecurityAgent</code> 時全部停用；日誌不含文字。</li>
+  </ol>
+
+  <h3>7.2 架構</h3>
+  <figure class="figure">
+    <div class="scroll-x"><div class="fig-inner">
+    <svg viewBox="0 0 960 430" role="img" aria-label="輸入法架構：同步路徑與非同步路徑">
+      <defs>
+        <marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--muted)"/></marker>
+      </defs>
+      <text x="20" y="28" style="fill:var(--green);font-size:14px;font-weight:600">同步路徑：在 handle() 回傳前完成（IME 自身 ≤5 ms，絕不等 LLM）</text>
+      <g style="font-size:13px">
+        <rect x="20" y="44" width="200" height="74" rx="10" style="fill:var(--panel2);stroke:var(--green)"/>
+        <text x="120" y="74" text-anchor="middle" style="fill:var(--text);font-weight:600">按鍵 keyDown</text>
+        <text x="120" y="96" text-anchor="middle" style="fill:var(--muted);font-size:12px">IMK handle(_:client:)</text>
+        <rect x="260" y="44" width="200" height="74" rx="10" style="fill:var(--panel2);stroke:var(--green)"/>
+        <text x="360" y="74" text-anchor="middle" style="fill:var(--text);font-weight:600">注音組字器</text>
+        <text x="360" y="96" text-anchor="middle" style="fill:var(--muted);font-size:12px">大千佈局・槽位・讀音規則</text>
+        <rect x="500" y="44" width="200" height="74" rx="10" style="fill:var(--panel2);stroke:var(--green)"/>
+        <text x="600" y="74" text-anchor="middle" style="fill:var(--text);font-weight:600">Lattice 引擎</text>
+        <text x="600" y="96" text-anchor="middle" style="fill:var(--muted);font-size:12px">詞典＋詞頻＋容錯候選 → K-best</text>
+        <rect x="740" y="44" width="200" height="74" rx="10" style="fill:var(--panel2);stroke:var(--green)"/>
+        <text x="840" y="74" text-anchor="middle" style="fill:var(--text);font-weight:600">顯示首選</text>
+        <text x="840" y="96" text-anchor="middle" style="fill:var(--muted);font-size:12px">setMarkedText（同原生注音）</text>
+      </g>
+      <g style="stroke:var(--muted);stroke-width:1.5;fill:none">
+        <path d="M220,81 L256,81" marker-end="url(#arw)"/>
+        <path d="M460,81 L496,81" marker-end="url(#arw)"/>
+        <path d="M700,81 L736,81" marker-end="url(#arw)"/>
+        <path d="M600,118 L600,170 L120,170 L120,216" marker-end="url(#arw)"/>
+        <path d="M840,216 L840,122" stroke-dasharray="5 4" marker-end="url(#arw)"/>
+      </g>
+      <text x="360" y="162" text-anchor="middle" style="fill:var(--muted);font-size:12px">K-best 候選＋通道分數（generation g）</text>
+      <text x="852" y="176" style="fill:var(--muted);font-size:12px">較佳結果</text>
+      <text x="852" y="192" style="fill:var(--muted);font-size:12px">（g 仍最新才套用）</text>
+      <text x="150" y="208" style="fill:var(--accent);font-size:14px;font-weight:600">非同步路徑：背景 actor（目標 p95 ≤30 ms；超過 80 ms 丟棄）</text>
+      <g style="font-size:13px">
+        <rect x="20" y="220" width="200" height="74" rx="10" style="fill:var(--panel2);stroke:var(--accent)"/>
+        <text x="120" y="250" text-anchor="middle" style="fill:var(--text);font-weight:600">排程器</text>
+        <text x="120" y="272" text-anchor="middle" style="fill:var(--muted);font-size:12px">generation token・熵門控・取消</text>
+        <rect x="260" y="220" width="200" height="74" rx="10" style="fill:var(--panel2);stroke:var(--accent)"/>
+        <text x="360" y="250" text-anchor="middle" style="fill:var(--text);font-weight:600">推論引擎（單例）</text>
+        <text x="360" y="272" text-anchor="middle" style="fill:var(--muted);font-size:12px">Qwen3-0.6B・左文 KV 常駐・共享前綴</text>
+        <rect x="500" y="220" width="200" height="74" rx="10" style="fill:var(--panel2);stroke:var(--accent)"/>
+        <text x="600" y="250" text-anchor="middle" style="fill:var(--text);font-weight:600">分數融合</text>
+        <text x="600" y="272" text-anchor="middle" style="fill:var(--muted);font-size:12px">LLM＋通道模型＋台灣詞頻先驗</text>
+        <rect x="740" y="220" width="200" height="74" rx="10" style="fill:var(--panel2);stroke:var(--accent)"/>
+        <text x="840" y="250" text-anchor="middle" style="fill:var(--text);font-weight:600">回填組字區</text>
+        <text x="840" y="272" text-anchor="middle" style="fill:var(--muted);font-size:12px">差距 &gt; 門檻才改；同處最多改一次</text>
+      </g>
+      <g style="stroke:var(--muted);stroke-width:1.5;fill:none">
+        <path d="M220,257 L256,257" marker-end="url(#arw)"/>
+        <path d="M460,257 L496,257" marker-end="url(#arw)"/>
+        <path d="M700,257 L736,257" marker-end="url(#arw)"/>
+      </g>
+      <g style="font-size:12px">
+        <rect x="20" y="330" width="290" height="72" rx="10" style="fill:none;stroke:var(--border)"/>
+        <text x="34" y="356" style="fill:var(--text);font-weight:600">L3 句級校對（停頓或標點後）</text>
+        <text x="34" y="378" style="fill:var(--muted)">保留「注音影子」；只提示，不自動改</text>
+        <rect x="335" y="330" width="290" height="72" rx="10" style="fill:none;stroke:var(--border)"/>
+        <text x="349" y="356" style="fill:var(--text);font-weight:600">個人化（背景、有上限）</text>
+        <text x="349" y="378" style="fill:var(--muted)">撤銷→不再改同輸入；使用者詞庫優先</text>
+        <rect x="650" y="330" width="290" height="72" rx="10" style="fill:none;stroke:var(--border)"/>
+        <text x="664" y="356" style="fill:var(--text);font-weight:600">安全與相容性</text>
+        <text x="664" y="378" style="fill:var(--muted)">per-app 策略・Secure Input 全停・看門狗</text>
+      </g>
+    </svg>
+    </div></div>
+    <figcaption>圖 1：上排是同步路徑（與原生注音一樣即時），下排是 LLM 非同步增強。LLM 結果只回填「仍在組字中的同一段」，過期就丟棄。MVP 把推論放在 IME 程序內的獨立 actor；之後若拆成 XPC，必須沿用 azooKey 修過的補丁清單。</figcaption>
+  </figure>
+
+  <h3>7.3 中文注音：一個音節的生命週期</h3>
+  <div class="tbl-wrap"><table>
+    <tr><th>時間</th><th>事件</th><th>由誰處理</th><th>預算／實測</th></tr>
+    <tr><td>t₀</td><td>按 <kbd>5</kbd>（ㄓ）</td><td><span class="tag-sync">同步</span>：組字器放進聲母槽，marked text 顯示「ㄓ」</td><td>&lt;1 ms</td></tr>
+    <tr><td>t₁</td><td>按 <kbd>6</kbd>（ˊ）完成音節</td><td><span class="tag-sync">同步</span>：lattice 重解（含容錯候選），顯示首選，送出排程請求 g</td><td>&lt;2 ms（Swift 實作目標）</td></tr>
+    <tr><td>t₁ + 數十 ms</td><td>LLM 對 K=8 候選打分</td><td><span class="tag-async">非同步</span>：共享前綴只算一次，批次算分歧後綴</td><td>實測（Python MLX，未最佳化）：連續計算 p50 31.7 ms；真實打字節奏 p50 43–50 ms、p90 62–73 ms</td></tr>
+    <tr><td>結果到達</td><td>g 仍最新、分數差 &gt; 門檻 → 改寫組字區</td><td>主執行緒</td><td>&lt;1 ms</td></tr>
+    <tr><td>下一鍵</td><td>使用者繼續打（音節之間通常 ≥300 ms，快手兩鍵之間約 120 ms）</td><td>—</td><td>—</td></tr>
+    <tr><td>Return／組字區滿</td><td>送出<b>目前顯示的內容</b>（不送出使用者沒看過的結果）</td><td><span class="tag-sync">同步</span></td><td>—</td></tr>
+  </table></div>
+  <p>原生注音本來就會在你繼續打字時改字（Apple 文件的例子：直 → 植物 → 植物學），所以 LLM 的修正對使用者來說就是「更聰明的自動選字」，不需要學新操作。</p>
+
+  <h3>7.4 注音錯誤模型（通道模型）</h3>
+  <div class="tbl-wrap"><table>
+    <tr><th>錯誤類型</th><th>例子</th><th>建模方式</th><th class="num">PoC 懲罰（nats）</th></tr>
+    <tr><td>鍵盤鄰鍵（垂直相鄰 = 同發音部位）</td><td>ㄋ <kbd>s</kbd> ↔ ㄌ <kbd>x</kbd>、ㄢ <kbd>0</kbd> ↔ ㄣ <kbd>p</kbd></td><td>大千 8 鄰鍵；槽位覆寫後仍可能合法（會變成「合法但錯的字」，只有 LM 抓得到）</td><td class="num">−5.0</td></tr>
+    <tr><td>鍵盤鄰鍵（水平相鄰 = 跨部位）</td><td>ㄔ <kbd>t</kbd> ↔ ㄗ <kbd>y</kbd>、ㄟ <kbd>o</kbd> ↔ ㄣ <kbd>p</kbd></td><td>同上</td><td class="num">−5.0</td></tr>
+    <tr><td>聲調鍵互觸</td><td>ˇ <kbd>3</kbd> ↔ ˋ <kbd>4</kbd>、ˊ <kbd>6</kbd> ↔ ˙ <kbd>7</kbd></td><td>相鄰聲調較便宜</td><td class="num">−3.0</td></tr>
+    <tr><td>聲調認知錯（含變調）</td><td>你好 ㄋㄧˇ 打成 ㄋㄧˊ</td><td>其他聲調</td><td class="num">−4.5</td></tr>
+    <tr><td>台灣華語合併音</td><td>ㄣ/ㄥ、ㄧㄣ/ㄧㄥ、ㄓㄔㄕ/ㄗㄘㄙ、ㄈ/ㄏ、ㄋ/ㄌ</td><td>模糊音等價類，每類一個可學習權重</td><td class="num">−4.0</td></tr>
+    <tr><td>不可能的組合</td><td>ㄅㄨㄥ → ㄅㄥ</td><td>Tekkon 式規則（vChewing）</td><td class="num">規則</td></tr>
+    <tr><td>誤觸 ㄓ（在 ˋ 與 ˊ 之間）、漏打或多打空白</td><td>音節被切開或黏在一起</td><td>lattice 允許重新切分（PoC 尚未實作）</td><td class="num">待做</td></tr>
+    <tr><td>先驗與個人化</td><td>—</td><td>P(照打即正確) ≈ 0.96；每鍵錯 1.5–2%（Jia &amp; Zhao 引用的估計）；用撤銷與退格紀錄在本機 EM 更新</td><td class="num">—</td></tr>
+  </table></div>
+  <p class="small muted">注意：ㄣ/ㄥ、ㄓ/ㄗ 這類配對在大千鍵盤上「不相鄰」，屬於發音或認知錯誤，要和手指滑動的鄰鍵錯分開建模。目前沒有公開的注音按鍵錯誤統計（主題 B 查證）。</p>
+
+  <h3>7.5 英文管線（保持 ABC 原生手感）</h3>
+  <ol>
+    <li><b>輸入法本體提供兩個模式</b>：「注音（LLM）」與「English（LLM）」。英文模式宣告為拉丁輸入來源，Caps Lock 就能像原生一樣在兩者間切換（Info.plist 宣告 <code>TICapsLockLanguageSwitchCapable</code>，使用者在系統設定選「切換至上次使用的拉丁輸入方式」）。<span class="muted">第三方 IME 宣告後是否一定出現此選項，列為必測項 U2。</span></li>
+    <li><b>英文按鍵一律放行</b>（回傳 false）：dead key（⌥E e → é）、長按重音選單、Option 層特殊字元都由系統處理，與 ABC 完全相同。我們只「觀察」按鍵，追蹤目前的字。</li>
+    <li><b>每鍵</b>：SymSpell（編輯距離 ≤2，0.03 ms）加鍵盤感知成本（同列鄰鍵、同指上下、鏡像鍵、雙擊插入、rollover 顛倒）產生候選。</li>
+    <li><b>詞邊界</b>（空白、標點）：LLM 用左文對 ≤8 個候選打分（還要算「下一個 token 是詞邊界」的機率），規則如下：
+      <ul>
+        <li>非詞典字、高信心、不屬於豁免（專有名詞大寫、camelCase、URL、數字、使用者詞庫、上文出現過的字）→ 自動替換，替換處短暫加底線；<b>緊接著按 Backspace = 還原</b>，並學習不再改。</li>
+        <li>真詞誤用（their/there、form/from）或中等信心 → 只顯示建議，不改。</li>
+      </ul></li>
+    <li><b>UI 模仿 macOS 原生 autocorrect</b>：打字時在字下方顯示建議泡泡，繼續打字或打標點就接受，Esc 忽略。這和 ABC 開啟「自動更正拼字」時的操作一模一樣。</li>
+    <li><b>替換方式</b>：照 AllInOneIME 的作法「先驗證再替換」。client 回報的游標要在剛打的字尾端，<code>attributedSubstring</code> 讀回的內容也要一致，才呼叫 <code>insertText(_:replacementRange:)</code>。只用於 Cocoa、WebKit（Chromium/Electron 逐 app 驗證後才放行）；終端機與 Office 只給提示；替換失敗的 app 自動加入黑名單。</li>
+    <li><b>與系統 autocorrect 共存</b>：讀 <code>NSSpellChecker.isAutomaticSpellingCorrectionEnabled</code>，若系統的自動更正已開啟，我們只給建議，避免雙重修正；onboarding 時建議（不強迫）關閉系統的「自動更正拼字」與「顯示內文預測字詞」。</li>
+    <li><b>選配「英文組字模式」</b>（hallelujahIM 式）：目前的字放在 marked text，空白鍵才 commit。這樣在所有 app（含終端機）都能做到「commit 前修正」，代價是打字時字下面有底線，所以預設關閉。</li>
+  </ol>
+
+  <h3>7.6 中英混打與「忘了切換」</h3>
+  <ul>
+    <li><b>英文模式打出大千鍵序列</b>（例如 <code>rup wu0 wu0 fu4cl3</code>＝今天天氣好）：同時用兩個假說打分，「英文」對「注音解碼後的中文」。中文假說明顯勝出時，就在泡泡裡提示「轉成：今天天氣好」，按 Return 才轉換。</li>
+    <li><b>注音模式誤打英文</b>：vChewing 有「按鍵無法組成合法讀音就視為英文」的回退機制，原生注音沒有。為了原生一致，預設關閉，設為選項。</li>
+  </ul>
+
+  <h3>7.7 延遲預算（把文獻門檻與本機實測放在一起）</h3>
+  <div class="tbl-wrap"><table>
+    <tr><th>事件</th><th>使用者看到</th><th class="num">預算（IME 自身，p95）</th><th>放什麼工作</th><th>本機實測／依據</th></tr>
+    <tr><td>A. 按鍵回顯</td><td>注音符號或字母出現</td><td class="num">≤5 ms</td><td>組字器（無 LLM）</td><td>間接輸入 JND 約 55–96 ms；系統基線本來就有 30–100 ms（Dan Luu）</td></tr>
+    <tr><td>B. 音節完成→首選</td><td>組字區出現轉換結果</td><td class="num">≤5 ms</td><td>lattice 重解（容錯）</td><td>Python PoC 5–24 ms；Swift 版估 &lt;2 ms（McBopomofo/vChewing 同類實作）</td></tr>
+    <tr class="hl"><td>C. LLM 重排回填</td><td>組字區中的字被修正</td><td class="num">目標 ≤30；硬上限 80</td><td>K=8 候選一次打分</td><td>每音節：連續計算 p50 31.7／p99 62 ms；真實打字節奏 p50 43–50／p90 62–73 ms（Qwen3-0.6B 4-bit，Python MLX；原生＋減量後預估 15–25 ms）</td></tr>
+    <tr><td>D. 文脈維護</td><td>不可見</td><td class="num">≤10 ms/次</td><td>commit 後追加 KV、退格裁切</td><td>追加 1 token 5.5 ms、4 token 7.5 ms；裁切 0.03 ms（實測）</td></tr>
+    <tr><td>E. 英文詞邊界決策</td><td>自動更正或泡泡</td><td class="num">≤50</td><td>≤8 候選打分</td><td>英文 PoC：每次 p50 41 ms（未快取文脈）；precision 99%</td></tr>
+    <tr><td>F. 句級校對建議</td><td>底線提示</td><td class="num">100–300</td><td>以原句為草稿驗證（SAD 式）</td><td>停頓 ≥500 ms 或標點後才跑</td></tr>
+    <tr><td>G. 使用者觸發改寫</td><td>diff 預覽</td><td class="num">≤1000</td><td>較大模型或系統模型</td><td>Nielsen 1 秒上限</td></tr>
+  </table></div>
+
+  <h3>7.8 KV 快取與狀態管理</h3>
+  <ul>
+    <li><b>文脈 KV</b>：「\n＋已送出的左文（≤256 tokens）」常駐。commit 時追加（實測 1–4 tokens 約 5.5–7.5 ms）；退格時 <code>trim</code>（純 attention 為 O(1)，實測 0.03 ms）；游標跳走或切換 app 時延遲重建。左文來源以「本 IME 自己 commit 的文字」為主，<code>client.string(from:actualRange:)</code> 為輔（最多讀 100–200 字，不在 activateServer 期間讀，以免 Chromium 死結）。</li>
+    <li><b>組字區延伸</b>：所有候選的「共同 token 前綴」接在文脈之後並跨按鍵保留，下一次只補差異。但實測共享前綴中位數只有 1 個 token（K-best 常從前幾個字就分歧），所以下一步要「只重排最後 W 個音節、前面已穩定的部分固定」，共享才會真正發揮作用。</li>
+    <li><b>候選批次</b>：只對分歧的後綴做一次 batch forward（MVP 用 KV 複製；下一步改成 tree attention mask，省掉複製成本）。</li>
+    <li><b>hybrid 模型</b>（Qwen3.5、LFM2）：遞迴狀態不能 trim，要自建「每 token 狀態快照」環形緩衝。LFM2 的 conv 狀態極小，Qwen3.5 的 DeltaNet 狀態較大，這是 MVP 選純 attention 模型的主因。</li>
+    <li><b>多個 client</b>：以 <code>uniqueClientIdentifierString</code> 為鍵，LRU 保留 4 份文脈。</li>
+  </ul>
+
+  <h3>7.9 模型策略（三階段）</h3>
+  <div class="tbl-wrap"><table>
+    <tr><th>階段</th><th>模型</th><th>做法</th><th>目的</th></tr>
+    <tr class="hl"><td>A：MVP</td><td>Qwen3-0.6B（Base）4-bit，MLX</td><td>免訓練，當純 LM 打分；分數＝LLM＋通道＋w·台灣詞頻先驗（w≈0.5–1.0，用來壓簡體偏好）</td><td>本報告 PoC 已證實：字錯誤率約減半、錯字救回約 90%</td></tr>
+    <tr><td>B：繁中化</td><td>同上＋LoRA</td><td>(1) 用繁中語料（c4-chinese-zhtw、維基、新聞）做短時間持續預訓練，修正「云端、周末」這類簡體偏好；(2) Zenzai 式條件 prompt「左文＋注音＋候選」，讓模型看得到讀音；(3) embedding 與 lm_head 保留 8-bit</td><td>提升繁中品質與錯字判斷力</td></tr>
+    <tr><td>C：專用小模型</td><td>30–100M 字級注音條件 LM</td><td>以 Qwen3.5-2B/1.7B 為老師，用 g2pW 讀音＋錯誤模型產生的合成資料蒸餾（樹懶、Zenzai 路線）</td><td>延遲壓到個位數 ms；可在 CPU/ANE 上跑，省電</td></tr>
+  </table></div>
+  <p class="small muted">為什麼不是更大的模型：本機實測 Qwen3-1.7B 的準確度只比 0.6B 多約 0.3 個百分點，打分延遲卻約 2 倍（冷卻後公平重測 75 vs 36 ms；未控溫時高達 3.6 倍，見第 6 節）。rime-llm-rerank 換 2B 也只多 0.3 分、延遲 3 倍；善解用 1.7B 在 p95 500 ms 以上，所以放棄。</p>
+
+  <h3>7.10 UX 規則</h3>
+  <ul>
+    <li><b>組字區內修正</b>：被 AI 改過的字可以用底線顏色（<code>NSUnderlineColor</code>，Chromium/WebKit 支援，其他 app 待測）短暫標示。macOS 14 起相鄰等粗底線會連成一條，要實測效果。</li>
+    <li><b>撤銷</b>：⇧Delete 先撤銷最近一次 AI 修正，第二次才是原生的「移除上一個輸入」；也可以在候選窗選回原本的字。Backspace 維持原生語意（刪除）。</li>
+    <li><b>從撤銷學習</b>：同一輸入被撤銷 1 次，就不再自動改；使用者詞庫優先於 LM。學習資料有上限（例如 LRU 500），在背景整理，避免 vChewing #620「資料一多每鍵都變慢」。</li>
+    <li><b>穩定性</b>：同一組字段落，AI 最多改一次，除非使用者又輸入新的音節；erasure 列為正式指標。</li>
+    <li><b>只送出看過的內容</b>：Enter 前一刻才到的結果不直接 commit（rakukan 的教訓）。</li>
+    <li><b>預設保守</b>：讀音層與組字區內的修正預設開；句級自動改寫預設關，只給提示。</li>
+  </ul>
+
+  <h3>7.11 IMK 工程要點（Do / Don't）</h3>
+  <div class="grid2">
+    <div class="card"><h3 style="color:var(--green)">Do</h3><ul class="small">
+      <li>bundle ID 與每個 <code>TISInputSourceID</code> 都要含 <code>.inputmethod.</code>；用 Developer ID 簽章＋公證；以 pkg 安裝到 <code>~/Library/Input Methods</code>；安裝後提示登出</li>
+      <li>Info.plist 照 TCIM 宣告：<code>TICapsLockLanguageSwitchCapable = true</code>、<code>TISDoubleSpaceSubstitution = 。</code>、<code>TISIntendedLanguage = zh-Hant</code>、<code>InputMethodConnectionName = $(PRODUCT_BUNDLE_IDENTIFIER)_Connection</code></li>
+      <li>IMKInputController 子類別不擁有任何物件，業務邏輯放在 singleton/actor（vChewing 筆記）</li>
+      <li>監聽 <code>kTISNotifySelectedKeyboardInputSourceChanged</code>，補救 macOS 26 不呼叫 deactivate 的問題（Squirrel #1140）</li>
+      <li>自繪候選窗（NSPanel，<code>windowLevel()+1</code>），不用 IMKCandidates</li>
+      <li>per-app 策略表：終端機、Chrome 網址列、VS Code、Word、JetBrains、Electron（浮動組字窗）</li>
+      <li>模型與 context 全程序單例；看門狗＋熔斷（推論出錯就停用 N 分鐘，退回純詞典）</li>
+    </ul></div>
+    <div class="card"><h3 style="color:var(--red)">Don't</h3><ul class="small">
+      <li>不要讓主執行緒等模型（任何超過 10 ms 的工作都會變成打字延遲）</li>
+      <li>不要把「改已送出的文字」當主要功能（終端機不可能、Chromium 只部分支援、Office 會壞）</li>
+      <li>不要頻繁呼叫 <code>length()</code> 或讀整份文件（Apple 標頭明言很貴）</li>
+      <li>不要在 activateServer 期間向 client 查詢（Chromium 可能 deadlock）</li>
+      <li>不要每鍵重讀設定或詞典（azooKey #380）</li>
+      <li>不要用 Apple Foundation Models 做逐鍵推論（背景程序＋電池會被 rate limit，也沒有 logprob）</li>
+    </ul></div>
+  </div>
+
+  <h3>7.12 功耗、記憶體、隱私</h3>
+  <ul>
+    <li><b>功耗</b>：IME 是短而突發的負載，但無風扇 Air 長時間打字仍會升溫。本機連跑 13 分鐘 benchmark 後，<code>ProcessInfo.thermalState</code> 從 nominal 升到 fair。對策：熵門控、K 依熱狀態縮小（8→4）、L3 句級校對只在 nominal 時跑、閒置 15 分鐘卸載模型（TabType 作法）、偵測 Low Power Mode。</li>
+    <li><b>記憶體</b>：Qwen3-0.6B 4-bit 權重 335 MB；benchmark 峰值 2.1 GB 含 MLX 暫存，產品要用 <code>mx.set_cache_limit</code>（MLX-Swift 同名 API）壓到 ≤1 GB。參考：vChewing 超過 1536 MiB 就自我重啟。</li>
+    <li><b>隱私</b>：不連網；Secure Input 偵測（<code>IsSecureEventInputEnabled()</code>＋IORegistry 找出持有者）；密碼欄全停；日誌只記延遲不記內容（azooKey #374 的作法）。</li>
+  </ul>
+</section>
+
+<section id="keys">
+  <h2>按鍵規格（照原生 Mac）</h2>
+  <p>依據：本機 macOS 27.0.1 的系統鍵盤佈局（以 <code>UCKeyTranslate</code> 逐鍵讀出）、TCIM 輸入法 bundle 的 plist/nib，以及 helpd 快取中的 macOS 27《中文和粵語輸入法使用手冊》全文（研究期間 support.apple.com 間歇 503，改用本機快取逐字核對）。全部唯讀，沒有改動任何設定。</p>
+
+  <h3>8.1 注音（大千／標準）佈局</h3>
+  <div class="tbl-wrap"><table class="small">
+    <tr><th>列</th><th>按鍵 → 符號</th></tr>
+    <tr><td>數字列</td><td><kbd>1</kbd>ㄅ <kbd>2</kbd>ㄉ <kbd>3</kbd>ˇ <kbd>4</kbd>ˋ <kbd>5</kbd>ㄓ <kbd>6</kbd>ˊ <kbd>7</kbd>˙ <kbd>8</kbd>ㄚ <kbd>9</kbd>ㄞ <kbd>0</kbd>ㄢ <kbd>-</kbd>ㄦ</td></tr>
+    <tr><td>上列</td><td><kbd>Q</kbd>ㄆ <kbd>W</kbd>ㄊ <kbd>E</kbd>ㄍ <kbd>R</kbd>ㄐ <kbd>T</kbd>ㄔ <kbd>Y</kbd>ㄗ <kbd>U</kbd>ㄧ <kbd>I</kbd>ㄛ <kbd>O</kbd>ㄟ <kbd>P</kbd>ㄣ</td></tr>
+    <tr><td>中列</td><td><kbd>A</kbd>ㄇ <kbd>S</kbd>ㄋ <kbd>D</kbd>ㄎ <kbd>F</kbd>ㄑ <kbd>G</kbd>ㄕ <kbd>H</kbd>ㄘ <kbd>J</kbd>ㄨ <kbd>K</kbd>ㄜ <kbd>L</kbd>ㄠ <kbd>;</kbd>ㄤ</td></tr>
+    <tr><td>下列</td><td><kbd>Z</kbd>ㄈ <kbd>X</kbd>ㄌ <kbd>C</kbd>ㄏ <kbd>V</kbd>ㄒ <kbd>B</kbd>ㄖ <kbd>N</kbd>ㄙ <kbd>M</kbd>ㄩ <kbd>,</kbd>ㄝ <kbd>.</kbd>ㄡ <kbd>/</kbd>ㄥ</td></tr>
+    <tr><td>聲調</td><td><kbd>Space</kbd> 一聲、<kbd>6</kbd> ˊ、<kbd>3</kbd> ˇ、<kbd>4</kbd> ˋ、<kbd>7</kbd> ˙</td></tr>
+  </table></div>
+  <p class="small muted">macOS 內建只有「注音（大千）」與獨立的「倚天注音」兩種佈局，沒有許氏或 IBM。倚天的聲調是 Space/2/3/4/1。若要支援倚天，就宣告第二個輸入模式（快捷鍵 ⌃⇧E）。</p>
+
+  <h3>8.2 組字區與候選窗（原生行為 → 我們照做）</h3>
+  <div class="tbl-wrap"><table class="small">
+    <tr><th>按鍵</th><th>原生注音行為</th><th>我們的實作</th></tr>
+    <tr><td>聲調鍵／<kbd>Space</kbd></td><td>打聲調（Space＝一聲）時完成音節並轉換；繼續打字時整段重新選字（直→植物→植物學）</td><td>照做；<b>LLM 修正就發生在這個「重新選字」的時刻</b></td></tr>
+    <tr><td><kbd>Space</kbd>（已轉換）</td><td>按兩下 Space 開候選窗（碼已帶聲調時按一下）</td><td>照做（候選經 LLM 重排，原字仍在列表中）</td></tr>
+    <tr><td><kbd>Space</kbd>（候選窗開著）</td><td>垂直視窗翻下一頁、水平視窗換下一列；<b>注音的 Space 不選字</b></td><td>照做</td></tr>
+    <tr><td><kbd>Return</kbd></td><td>組字區有內容時送出；候選窗開著時選取反白候選（注音用 Return 選字，拼音才用 Space）</td><td>照做；送出時只送出已經顯示的內容</td></tr>
+    <tr><td>數字鍵</td><td>候選窗開著時選對應候選</td><td>照做</td></tr>
+    <tr><td>方向鍵、<kbd>=</kbd><kbd>-</kbd>、<kbd>[</kbd><kbd>]</kbd></td><td>候選窗內移動；<kbd>=</kbd>/<kbd>-</kbd> 或 <kbd>[</kbd>/<kbd>]</kbd> 換列</td><td>照做（候選窗沒開時，這些鍵依佈局輸出）</td></tr>
+    <tr><td><kbd>Tab</kbd>／<kbd>⇧Tab</kbd></td><td>候選窗內切換排序方式</td><td>照做</td></tr>
+    <tr><td><kbd>⇧Delete</kbd></td><td>移除最後一次輸入（如聲調）；Apple 快捷鍵表稱「還原上一個替代項目」；選單稱「清除所選的記憶字詞」</td><td><b>第一下撤銷最近一次 AI 修正</b>，第二下才是原生行為（正好對上原生「還原替代」的語意）</td></tr>
+    <tr><td><kbd>⌥</kbd>＋數字</td><td>輸入阿拉伯數字（注音佈局的數字鍵是注音）</td><td>照做</td></tr>
+    <tr><td>Delete、Esc、←→、Home/End（組字中）</td><td>Apple 未文件化 → <b>需在真機手測</b>（U6–U8）</td><td>先照 McBopomofo/vChewing 慣例實作，再依手測結果校正</td></tr>
+  </table></div>
+
+  <h3>8.3 注音模式的標點與符號（組字區空白時）</h3>
+  <div class="tbl-wrap"><table class="small">
+    <tr><th>按鍵</th><th>輸出</th><th>按鍵</th><th>輸出</th></tr>
+    <tr><td><kbd>⇧,</kbd></td><td>，（全形）</td><td><kbd>⇧.</kbd></td><td>。</td></tr>
+    <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>「 」</td><td><kbd>⇧[</kbd> <kbd>⇧]</kbd></td><td>『 』</td></tr>
+    <tr><td><kbd>\</kbd></td><td>、（頓號）</td><td><kbd>`</kbd></td><td>·（U+00B7）</td></tr>
+    <tr><td><kbd>⌥-</kbd></td><td>—</td><td><kbd>⌥⇧B</kbd></td><td>表情與標點符號視窗</td></tr>
+    <tr><td><kbd>⇧/</kbd> <kbd>⇧1</kbd> <kbd>⇧;</kbd> …</td><td>佈局本身是半形 ? ! :；是否被引擎轉成全形待手測（U15）</td><td>刪節號</td><td>繁中預設「⋯⋯」（U+22EF），不是「……」</td></tr>
+  </table></div>
+
+  <h3>8.4 切換與放行規則</h3>
+  <ul>
+    <li><b>由系統處理（我們不攔截）</b>：🌐/fn（依「按下🌐鍵來」設定）、<kbd>⌃Space</kbd>（上一個輸入方式）、<kbd>⌃⌥Space</kbd>（下一個）、Caps Lock 短按切換 ABC、長按鎖定大寫。我們只要在 <code>commitComposition:</code> 與 <code>deactivateServer:</code> 正確收尾。</li>
+    <li><b>原生注音沒有「Shift 切換中英」</b>：Apple 的注音設定只有候選窗方向與字體、顯示關聯字、調整用字頻率、顯示簡體字和罕用字、特殊字彙。為了和原生一致，<b>預設不實作 Shift 切換</b>，最多做成預設關閉的選項。</li>
+    <li><b>組字區空白時放行</b>：Return、Delete、Esc、Tab、方向鍵、所有 ⌘ 組合、⌃ emacs 綁定（⌃A/E/K…）、⌥＋方向/Delete。這也是 Apple IMK 標頭的建議，Cocoa 的 ⌘ 快捷鍵通常根本到不了 IME。</li>
+    <li><b>注音佈局的特殊性</b>：Caps Lock 層輸出 ASCII 小寫（和 ABC 相反）；Shift＋字母輸出 ASCII 大寫；Option 層沒有 dead key。這些都要照原生佈局。</li>
+    <li><b>英文模式</b>：全部放行（保留 ABC 的 dead key、長按重音選單、Option 層符號、系統 autocorrect）；AI 只在詞邊界介入（見 7.5）。</li>
+  </ul>
+
+  <h3>8.5 開發前必須在真機手測校正的行為（21 項，摘要）</h3>
+  <p class="small">Apple 沒有文件化，本機證據也不足，需在 TextEdit 用原生注音逐項測。每項的測試步驟見 <code>research_notes/E_macOS原生按鍵規格.md</code>（第 1–8 節的 T1-1～T8-4）。</p>
+  <ul class="small">
+    <li>U1：組字中切換輸入法、點擊他處或 ⌘Tab 時，組字區是送出還是丟棄</li>
+    <li>U2：第三方 IME 宣告 <code>TICapsLockLanguageSwitchCapable</code> 後，是否出現 Caps Lock 切換選項</li>
+    <li>U5–U9：同槽位打第二個符號、先打韻母、空組字區按聲調、Delete 的刪除粒度、組字區內的 ←→ 與 Home、Esc、Return 是否換行、組字區最大長度</li>
+    <li>U13–U17：組字中打標點、每頁候選數、預設候選窗方向（plist 推論為垂直）、Shift＋字母與 Caps Lock 的全形/半形、組字中按 ⌘C/⌘V/⌃A</li>
+    <li>U18–U20：IME 消化字母鍵時系統的長按重音選單是否仍出現、IME 送出英文時系統 autocorrect 是否仍作用、注音模式連按兩下 Space 是否出「。」</li>
+  </ul>
+</section>
+
+<section id="breakthroughs">
+  <h2>創新突破口</h2>
+  <p class="muted small">這個專案除了做成產品，也有可以發表的研究縫隙。以下依「新穎性 × 可行性」排序，評級是我的判斷。</p>
+
+  <div class="card breakthrough">
+    <h3>突破口 1：第一個「LLM 重排＋容錯 lattice」注音輸入法的系統化評測</h3>
+    <div class="badges"><span class="badge hi">新穎性：中高</span><span class="badge hi">可行性：高</span><span class="badge mid">影響：ACL/EMNLP Findings 或 Demo</span></div>
+    <dl class="kv">
+      <dt>具體做法</dt><dd>把本報告的 PoC 正式化：用 g2pW 產生台灣讀音，建 1–2 萬句的合成注音測試集，再收一份小型真人注音打字集（見突破口 2）。比較傳統引擎（McBopomofo/libchewing）、只容錯、只 LLM、容錯＋LLM，加上模型大小、K、熵門控的消融，並在 M4 Air 上量 p50/p95 與能耗。</dd>
+      <dt>依據</dt><dd class="muted">LREC 2026 只測端到端，作者自承沒測「引擎產生候選＋LLM 重排」；Zhou et al. 2024 與 MSLLM 只做字級 CSC，不是 IME；社群的注音專案數字都是自報；學術界找不到同儕審查的神經注音轉換或打錯鍵研究（主題 B）。</dd>
+      <dt>風險與快速驗證</dt><dd>合成錯誤與真實錯誤有落差 → 先用 200 句真人打字資料驗證「合成上的增益在真實資料上還在不在」，一週內可完成。</dd>
+    </dl>
+  </div>
+
+  <div class="card breakthrough">
+    <h3>突破口 2：注音打錯鍵資料集＋「鍵盤幾何×發音部位」錯誤模型</h3>
+    <div class="badges"><span class="badge hi">新穎性：高</span><span class="badge mid">可行性：中</span><span class="badge mid">影響：LREC/COLING 資源論文</span></div>
+    <dl class="kv">
+      <dt>具體做法</dt><dd>仿 READIN（ACL 2023）的「限速、禁止修正」重打協定，招募 30–50 位台灣使用者用注音重打句子；我們的 IME 原型會記錄 keyDown 時間戳、按鍵與 Backspace 歷程。據此分析：垂直鄰鍵（同發音部位）與水平鄰鍵各佔多少？口音合併（ㄣ/ㄥ…）與手滑各佔多少？聲調錯又有多少？</dd>
+      <dt>依據</dt><dd class="muted">主題 B 多次搜尋，找不到任何公開的注音按鍵錯誤統計；READIN 量到拼音 IME 約 56% 是選字錯、44% 是打錯鍵，但只有簡體與拼音。</dd>
+      <dt>風險與快速驗證</dt><dd>招募與倫理審查 → 先在實驗室找 5 人做 pilot，確認紀錄格式與錯誤率量級。</dd>
+    </dl>
+  </div>
+
+  <div class="card breakthrough">
+    <h3>突破口 3：按鍵時序當作通道模型的「軟資訊」</h3>
+    <div class="badges"><span class="badge hi">新穎性：高</span><span class="badge mid">可行性：中</span><span class="badge mid">影響：CHI/UIST</span></div>
+    <dl class="kv">
+      <dt>具體做法</dt><dd>IMK 收到的每個 NSEvent 都有 timestamp。把「這一鍵的 IKI 是否異常」「是否 rollover 重疊」等時序特徵，換算成該鍵的錯誤可能性，動態調整通道懲罰：可疑的鍵允許較多容錯候選，穩定的鍵則幾乎不改。</dd>
+      <dt>依據</dt><dd class="muted">Logan &amp; Crump（Science 2010）：熟練打字者的手指層級會在錯誤鍵上出現 post-error slowing；Dhakal 2018：rollover 很普遍，快手達 50%。一次搜尋沒找到用時序做 typo 偵測或 autocorrect 的直接前例（未找到≠不存在）。</dd>
+      <dt>風險與快速驗證</dt><dd>訊號可能太弱 → 用突破口 2 的資料，算「錯誤鍵 vs 正確鍵」IKI 分布的 AUC；AUC &lt; 0.6 就放棄。</dd>
+    </dl>
+  </div>
+
+  <div class="card breakthrough">
+    <h3>突破口 4：IME 原生的增量推論：共享前綴＋KV 回滾＋熵門控</h3>
+    <div class="badges"><span class="badge mid">新穎性：中</span><span class="badge hi">可行性：高</span><span class="badge mid">影響：MLSys workshop／系統類短文</span></div>
+    <dl class="kv">
+      <dt>具體做法</dt><dd>把第 6 節的增量模擬器做成正式系統（MLX-Swift），量化「每音節延遲 × 準確度 × 能耗」的 Pareto 前緣，比較 batch 複製 KV 與 tree attention、純 attention 與 hybrid 狀態快照、GPU 與 CPU/ANE。</dd>
+      <dt>依據</dt><dd class="muted">主題 C／D：Apple M 系列上小模型的逐鍵延遲找不到可信的公開數字（FuJiK0 的 1 ms 經讀碼確認不可信）；善解用 1.7B 每個候選 p95 500 ms 以上，主因是沒有快取也沒有批次。</dd>
+      <dt>風險與快速驗證</dt><dd>改用 Swift 後的增益可能比預期小 → 先用 llama.cpp（C++）對照 Python MLX 的固定開銷（第 6 節）。</dd>
+    </dl>
+  </div>
+
+  <div class="card breakthrough">
+    <h3>突破口 5：「忘了切換輸入法」的雙假說偵測</h3>
+    <div class="badges"><span class="badge mid">新穎性：中</span><span class="badge hi">可行性：高</span><span class="badge lo">影響：產品功能／Demo</span></div>
+    <dl class="kv">
+      <dt>具體做法</dt><dd>在英文模式下，對每個「詞」同時算英文 LM 機率與「當成大千鍵序列解碼成中文」的機率；中文明顯勝出時提示轉換。</dd>
+      <dt>依據</dt><dd class="muted">旺宏科學獎報告（高中科展，非同儕審查）以 PTT 語料做過；主流 macOS 輸入法沒有這個功能（未逐一確認）。</dd>
+      <dt>風險與快速驗證</dt><dd>短英文詞（如 "su3"）可能誤判 → 只在 ≥3 個音節且英文機率極低時提示。</dd>
+    </dl>
+  </div>
+
+  <div class="card breakthrough">
+    <h3>突破口 6：注音條件的繁中專用小模型（Zenzai 式 prompt）</h3>
+    <div class="badges"><span class="badge mid">新穎性：中</span><span class="badge mid">可行性：中高</span><span class="badge mid">影響：領域會議／開源模型</span></div>
+    <dl class="kv">
+      <dt>具體做法</dt><dd>序列格式為「[左文][注音（含容錯標記）][候選]」，以 30–100M 字級 decoder 訓練，資料由 g2pW 讀音加錯誤模型合成，以 Qwen3.5-2B 為老師蒸餾。</dd>
+      <dt>依據</dt><dd class="muted">Zenzai 證明 26–310M 在日文可達每字數 ms；McBopomofoLM、SlothLM-E 已有繁中 encoder，但沒有做「打錯鍵」的條件化，數字也是自報。</dd>
+      <dt>風險與快速驗證</dt><dd>授權乾淨的繁中語料與詞頻 → 先確認 c4-chinese-zhtw 與教育部辭典的授權。</dd>
+    </dl>
+  </div>
+
+  <div class="card breakthrough">
+    <h3>突破口 7：穩定性感知的自動修正（把 erasure 帶進 IME 評測）</h3>
+    <div class="badges"><span class="badge mid">新穎性：中</span><span class="badge hi">可行性：高</span><span class="badge mid">影響：CHI Late-Breaking Work</span></div>
+    <dl class="kv">
+      <dt>具體做法</dt><dd>定義 IME 的 erasure（已顯示的字被改掉的次數），比較「改一次就鎖定」「只改最近 N 字」「延到詞邊界才改」三種策略對主觀干擾與準確度的影響（使用者研究）。</dd>
+      <dt>依據</dt><dd class="muted">IWSLT 2020 的 re-translation 研究；azooKey 作者指出 live conversion 會讓前面的字跳動；Schmid 2023 指出編輯迴圈對延遲最敏感。</dd>
+      <dt>風險與快速驗證</dt><dd>效果量可能小 → 先做 8 人的被試內 pilot。</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="inspirations">
+  <h2>跨領域靈感</h2>
+
+  <div class="card inspiration">
+    <h3>靈感 1：Two-pass 串流語音辨識（快速第一遍＋重模型第二遍）</h3>
+    <div class="badges"><span class="badge">語音辨識・2019–2020（Sainath et al.）</span></div>
+    <dl class="kv">
+      <dt>核心機制</dt><dd>RNN-T 串流即時出字，句末由 LAS 對 top-K 重打分；兩者共用 encoder。</dd>
+      <dt>對應關係</dt><dd>RNN-T ↔ 注音 lattice（即時、詞典保證）；LAS rescoring ↔ LLM 打分 K-best；句末 ↔ 音節完成或標點。</dd>
+      <dt>如何移植</dt><dd>就是本報告的主架構。進一步可借 deliberation：第二遍同時看「原始注音」與「第一遍候選」，對應階段 B 的注音條件 prompt。</dd>
+      <dt>前人試過嗎</dt><dd class="muted">IME 社群已獨立出現類似做法（azooKey、rime-llm-rerank、善解），但沒人用 ASR 文獻的框架系統化評測（例如 rescoring 與 beam search 的取捨、延遲—品質曲線）。</dd>
+      <dt>第一個實驗</dt><dd>比較「只重排 K-best」與「LLM 引導 beam search 走 lattice」的準確度與延遲（一週）。</dd>
+      <dt>賭注</dt><dd class="muted">lattice 的 K-best 覆蓋率夠高（本機實測 oracle@8 在乾淨輸入下為 94%，有打錯時 73%）。</dd>
+    </dl>
+  </div>
+
+  <div class="card inspiration">
+    <h3>靈感 2：格鬥遊戲的 Rollback Netcode（先預測顯示，權威結果到了再回滾）</h3>
+    <div class="badges"><span class="badge">遊戲網路同步・2006（Tony Cannon, GGPO）</span></div>
+    <dl class="kv">
+      <dt>核心機制</dt><dd>本地不等對手輸入，先預測並推進畫面；真實輸入到達後若不同，就回到最後確認狀態，用正確輸入重算，再把修正藏進動畫裡。</dd>
+      <dt>對應關係</dt><dd>預測 ↔ lattice 首選先顯示；真實輸入 ↔ LLM 的結果；回滾重算 ↔ 改寫組字區並裁切 KV；「藏修正」↔ 在使用者注意力離開的時機套用修正。</dd>
+      <dt>如何移植</dt><dd>(1) 以「最後確認狀態」為單位管理組字區與 KV（commit＝確認）；(2) 修正只在使用者剛打下一個音節的瞬間套用（視線在游標處的新字），避開他正在看的字；(3) 太晚到的修正直接丟棄，不硬改。</dd>
+      <dt>前人試過嗎</dt><dd class="muted">一次搜尋沒找到用在 IME 或 autocorrect 的例子；最接近的是推測式遠端顯示研究（Northwestern 技術報告）與一份推測式文字回顯專利。</dd>
+      <dt>第一個實驗</dt><dd>錄製打字過程，比較「結果一到就改」與「下一鍵時才改」兩種時機的主觀干擾分數。</dd>
+      <dt>賭注</dt><dd class="muted">使用者的視線確實集中在最新字附近。</dd>
+    </dl>
+  </div>
+
+  <div class="card inspiration">
+    <h3>靈感 3：熟練打字者的階層式錯誤偵測與「作者錯覺」</h3>
+    <div class="badges"><span class="badge">認知心理學・2010（Logan &amp; Crump, Science 330:683–686）</span></div>
+    <dl class="kv">
+      <dt>核心機制</dt><dd>打字有內外兩個迴圈：外迴圈看螢幕，內迴圈靠手指的動作回饋。即使電腦偷偷修好了錯字，手指層級仍會在真實錯誤後放慢（post-error slowing）。外迴圈則會被螢幕騙：受試者把電腦偷偷修好的錯當成自己的功勞，也替程式插入的錯字揹黑鍋。</dd>
+      <dt>對應關係</dt><dd>post-error slowing ↔ 按鍵時序中的錯誤訊號（突破口 3）；作者錯覺 ↔ 組字區內的靜默修正會被使用者當成「自己打對了」。</dd>
+      <dt>如何移植</dt><dd>(1) 時序異常的鍵提高容錯權重；(2) 使用者正在減速、可能準備按 Backspace 時，先不要自動修正，避免和他搶；(3) 既然靜默修正不易被察覺，錯的修正也一樣不易察覺 → 精確率門檻必須更高，並提供事後查看「AI 改過哪裡」的紀錄。</dd>
+      <dt>前人試過嗎</dt><dd class="muted">一次搜尋沒找到把打字者錯誤偵測的時序特徵直接用在 autocorrect 的研究；相關的心理學後續研究（如 Crump &amp; Logan 2013 的 post-error 表現）未逐篇核對。</dd>
+      <dt>第一個實驗</dt><dd>用 Dhakal 136M keystrokes 資料（研究用途），計算錯誤鍵前後 IKI 的分布差異。</dd>
+      <dt>賭注</dt><dd class="muted">筆電鍵盤＋自由撰寫情境下，訊號仍然存在。</dd>
+    </dl>
+  </div>
+
+  <div class="card inspiration">
+    <h3>靈感 4：通訊的軟判決 Viterbi 解碼（soft-decision decoding）</h3>
+    <div class="badges"><span class="badge">數位通訊・1967 起（Viterbi）</span></div>
+    <dl class="kv">
+      <dt>核心機制</dt><dd>解碼器不只拿 0/1 硬判決，還拿每個符號的可靠度（LLR），可靠度低的位元更容易被翻轉。</dd>
+      <dt>對應關係</dt><dd>符號 ↔ 按鍵；LLR ↔ 由時序、rollover、按壓時長估出的「這鍵按錯的機率」；Viterbi ↔ 注音 lattice。</dd>
+      <dt>如何移植</dt><dd>通道懲罰不再是常數，而是 f(該鍵時序特徵)；用突破口 2 的資料以邏輯迴歸學習 f。</dd>
+      <dt>前人試過嗎</dt><dd class="muted">觸控鍵盤早就用觸點座標當軟資訊（spatial model）；實體鍵盤沒有座標，用時序當軟資訊的直接前例沒找到。</dd>
+      <dt>第一個實驗</dt><dd>在合成資料上模擬「錯誤鍵 IKI 較長」的分布，看軟判決能多救回多少錯字（上界分析）。</dd>
+      <dt>賭注</dt><dd class="muted">時序與錯誤之間有足夠的相關性。</dd>
+    </dl>
+  </div>
+
+  <div class="card inspiration">
+    <h3>靈感 5：CPU 的推測執行／分支預測（利用按鍵之間的空檔）</h3>
+    <div class="badges"><span class="badge">計算機結構・1990 年代起</span></div>
+    <dl class="kv">
+      <dt>核心機制</dt><dd>在分支結果出來前先執行最可能的路徑，猜對就省下時間，猜錯就丟棄。</dd>
+      <dt>對應關係</dt><dd>分支 ↔ 使用者正在打的音節還沒按聲調；空檔 ↔ 兩鍵之間的 120–480 ms（Dhakal）。</dd>
+      <dt>如何移植</dt><dd>聲母與介音一出現，就在背景預先為「最可能的 2–3 個完整音節」算好 LLM 分數（KV 延伸）；聲調一按下，直接取用已算好的結果，延遲趨近 0。</dd>
+      <dt>前人試過嗎</dt><dd class="muted">azooKey 的作法相反：羅馬字尾未定時延後評估；TabType 會讓正在跑的生成延續。沒找到「按鍵空檔推測打分」的前例（未專門搜尋）。</dd>
+      <dt>第一個實驗</dt><dd>統計「聲母已知時，正確完整音節落在前 3 名的比例」，決定推測的命中率上限。</dd>
+      <dt>賭注</dt><dd class="muted">推測的額外功耗小於延遲收益（無風扇機器上需要權衡）。</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="experiment">
+  <h2>實驗規劃與開發路線圖</h2>
+  <p class="muted small">對象：突破口 1（同時也是產品的核心功能）。結構依 cs-research-assistant 的 Phase 4 規範。</p>
+
+  <h3>1. 假設</h3>
+  <p>如果在注音 lattice 的 K-best（含鍵盤鄰鍵與發音容錯候選）上，用 ≤0.8B 的 LLM 依左文重排，那麼在含約 2% 按鍵錯誤的<b>真實</b>注音輸入上，字錯誤率會比傳統詞頻引擎（McBopomofo/libchewing）相對降低 ≥40%，且 MacBook Air M4 上每音節的 LLM 延遲 p95 ≤30 ms。</p>
+
+  <h3>2. Novelty 查證</h3>
+  <div class="tbl-wrap"><table class="small">
+    <tr><th>最接近的工作</th><th>它做了什麼</th><th>我們的差異（審稿人能接受嗎）</th></tr>
+    <tr><td>LREC 2026 LLM-IME benchmark</td><td>LLM 端到端轉換與修正（拼音、簡體）</td><td>我們是「引擎候選＋LLM 重排」，作者自承沒測這個；加上注音、繁體與延遲 → 可辯護</td></tr>
+    <tr><td>Zhou et al. 2024／MSLLM 2025</td><td>LLM＋失真模型做字級 CSC</td><td>我們的輸入是按鍵與注音，通道是鍵盤幾何，而且是即時增量 → 可辯護，但要清楚引用並說明是移植</td></tr>
+    <tr><td>GeneInput 2023</td><td>2.6B 模型吃雜訊拼音按鍵</td><td>我們是 0.6B、本機、注音、免訓練起步 → 可辯護</td></tr>
+    <tr><td>McBopomofoLM／SlothLM-E／樹懶注音／善解（社群）</td><td>注音專用小模型，數字自報</td><td>我們有打錯鍵通道＋LLM 重排＋公開評測協定 → 可辯護，但要把它們當 baseline 比較</td></tr>
+    <tr><td>rime-llm-rerank</td><td>拼音候選的 LLM 重排（沒有錯字通道）</td><td>非學術、無評測；我們加上容錯與注音 → 可辯護</td></tr>
+  </table></div>
+
+  <h3>3. 最小可行實驗（MVP）— 已完成第一版</h3>
+  <p>本報告第 6 節的 Python PoC 就是 MVP：138 個語句片段、1,563 字、每段注入一個鍵盤錯誤，9 個模型的準確度與延遲都已量測。<b>Go/No-go 準則</b>：在真人資料上（下一步），若「容錯＋LLM」相對傳統引擎的字錯誤率降幅 &lt;20%，或 p95 &gt;80 ms 且最佳化後仍降不下來，就回頭重想，改走階段 C 的專用小模型。</p>
+
+  <h3>4. 資料集與 benchmark</h3>
+  <div class="tbl-wrap"><table class="small">
+    <tr><th>資料</th><th>用途</th><th>規模</th><th>授權／注意</th></tr>
+    <tr><td>自建合成集：c4-chinese-zhtw 句子＋g2pW 讀音＋錯誤模型</td><td>開發與消融</td><td>1–2 萬句</td><td>c4 無明確授權（依 Common Crawl 條款）；g2pW Apache-2.0</td></tr>
+    <tr><td>自建真人注音打字集（READIN 協定）</td><td>主評測</td><td>30–50 人 × 100–200 句</td><td>需倫理審查與知情同意</td></tr>
+    <tr><td>Common Voice zh-TW 1,500 句</td><td>與 McBopomofoLM 自報數字對照</td><td>1,500</td><td>CC0（未逐頁核對）</td></tr>
+    <tr><td>SIGHAN 2013（繁體、母語者）</td><td>句級校對（L3）評測</td><td>1,000 句</td><td>僅學術用途</td></tr>
+    <tr><td>英文：GitHub Typo Corpus、Birkbeck、合成鍵盤雜訊</td><td>英文路徑</td><td>—</td><td>Dhakal 136M 資料限研究與非商用</td></tr>
+  </table></div>
+
+  <h3>5. Baselines 與公平比較</h3>
+  <ul class="small">
+    <li><b>經典</b>：macOS 內建注音（以腳本送按鍵、讀回結果）、McBopomofo、libchewing（Yen 10-best）、vChewing。</li>
+    <li><b>近期</b>：McBopomofoLM、SlothLM-E（可下載）、rime-llm-rerank 式「無通道重排」、Zhou et al. 失真模型移植版。</li>
+    <li><b>自身消融</b>：−容錯、−LLM、−詞頻先驗、K、模型大小、量化位元數。</li>
+    <li><b>公平協定</b>：同一份按鍵序列；同一詞典（能控制時）；同一台機器、同一熱狀態（每次測量前冷卻至 nominal）；延遲報告 p50/p95/p99；模型比較時 K 與 prompt 固定。</li>
+  </ul>
+
+  <h3>6. 指標與 sanity checks</h3>
+  <ul class="small">
+    <li><b>主指標</b>：字錯誤率（CER）、整句正確率；<b>次指標</b>：錯字救回率、誤改數（原本對被改錯）、每千字 erasure、每音節延遲 p95、每 100 字能耗（powermetrics）。</li>
+    <li><b>Sanity</b>：(a) 打亂左文（給隨機上下文），LLM 增益應明顯下降；(b) oracle@K 上界；(c) 錯誤注入用 ≥3 個 seed，報告平均±標準差；(d) 確認測試句沒有出現在 LoRA 訓練資料中。</li>
+  </ul>
+
+  <h3>7. Ablation 計畫</h3>
+  <div class="tbl-wrap"><table class="small">
+    <tr><th>拿掉/替換</th><th>預期</th></tr>
+    <tr><td>容錯通道</td><td>錯字救回率從約 90% 掉到約 3%（PoC 已見）</td></tr>
+    <tr><td>LLM（只用 lattice）</td><td>乾淨輸入字錯誤率回到約 3.5%</td></tr>
+    <tr><td>台灣詞頻先驗 w=0</td><td>簡體偏好錯誤（云端、周末）增加</td></tr>
+    <tr><td>左文長度 0／32／128 tokens</td><td>跨片段的同音字（在/再）錯誤隨左文縮短而增加</td></tr>
+    <tr><td>熵門控門檻</td><td>呼叫 LLM 的比例與準確度之間的取捨曲線</td></tr>
+    <tr><td>Oracle：讓 LLM 看到正確注音</td><td>估計「通道模型完美時」的上界</td></tr>
+  </table></div>
+
+  <h3>8. 結果解讀計畫</h3>
+  <ul class="small">
+    <li><b>成立</b> → 擴到更多使用者，加上能耗與使用者研究（主觀流暢度），投 ACL/EMNLP Findings。</li>
+    <li><b>部分成立</b>（乾淨輸入有效、真人打錯鍵無效）→ 分析錯誤類型：多半是通道模型沒涵蓋（切分錯）還是 LM 判斷錯，再決定補通道還是做階段 B。</li>
+    <li><b>不成立</b> → 至少可寫成「注音打錯鍵資料集＋分析」的資源論文（突破口 2）。</li>
+  </ul>
+
+  <h3>9. 風險與備案</h3>
+  <div class="tbl-wrap"><table class="small">
+    <tr><th>風險</th><th>早期警訊</th><th>備案</th></tr>
+    <tr><td>合成與真實錯誤分布差很多</td><td>pilot 的真人錯誤類型與錯誤模型假設不符</td><td>用真人資料重估通道參數（EM）</td></tr>
+    <tr><td>無風扇機器降頻導致 p95 漂移</td><td>連續打字 30 分鐘後 p95 上升超過 50%</td><td>熵門控、縮小 K、改 CPU/ANE 跑的專用小模型</td></tr>
+    <tr><td>Qwen 的簡體偏好在真實文字上更嚴重</td><td>「云端／周末」類錯誤占比高</td><td>繁中 LoRA、提高詞頻先驗權重、在詞典層排除非台灣用字</td></tr>
+  </table></div>
+
+  <h3>10. 貢獻框架</h3>
+  <ol class="small">
+    <li>第一個公開評測的「LLM 重排＋鍵盤容錯」注音輸入法，以及它在 Apple Silicon 筆電上的延遲—準確度—能耗特性。</li>
+    <li>注音打錯鍵資料集與錯誤分析（鍵盤幾何 × 發音部位 × 口音合併）。</li>
+    <li>開源 IMK 實作與 IME 原生增量推論技巧（共享前綴、回滾、熵門控）。</li>
+  </ol>
+  <p class="small muted">對應等級：1＋2 可衝 ACL/EMNLP Findings 或 LREC；只有 3 適合 Demo track。</p>
+
+  <h3>開發路線圖（產品）</h3>
+  <div class="tbl-wrap"><table class="small">
+    <tr><th>里程碑</th><th>內容</th><th>完成定義</th><th class="num">估時</th></tr>
+    <tr class="hl"><td>M0（已完成）</td><td>研究調查、Python PoC、M4 實測</td><td>本報告</td><td class="num">—</td></tr>
+    <tr><td>M1 核心引擎</td><td>Swift：注音組字器（大千、槽位、讀音規則）、lattice（以 McBopomofo Gramambular2 為底或自建）、容錯候選、單元測試；MLX-Swift 推論 actor（文脈 KV、共享前綴打分）</td><td>離線評測與 PoC 一致；每音節 p95 實測</td><td class="num">2–3 週</td></tr>
+    <tr><td>M2 IMK 原型</td><td>Info.plist、簽章、安裝、自繪候選窗、完整原生按鍵規格（含手測 U1–U21 校正）、per-app 策略、Secure Input</td><td>在 TextEdit、Safari、Chrome、VS Code、Terminal 都能正常打注音</td><td class="num">2–3 週</td></tr>
+    <tr><td>M3 AI 接入</td><td>非同步重排、熵門控、⇧Delete 撤銷、從撤銷學習、穩定性控制、看門狗</td><td>連續打字 30 分鐘無卡頓、erasure 達標</td><td class="num">2 週</td></tr>
+    <tr><td>M4 英文模式</td><td>放行＋詞邊界修正、原生 autocorrect 式泡泡、驗證後替換、雙假說偵測</td><td>英文自動替換 precision ≥97%（自建測試集）</td><td class="num">2 週</td></tr>
+    <tr><td>M5 資料與模型</td><td>真人打字資料、繁中 LoRA、注音條件 prompt、（選配）蒸餾專用小模型</td><td>真人資料上達成假說</td><td class="num">3–4 週</td></tr>
+    <tr><td>M6 發布與評測</td><td>使用者研究、功耗測試、Developer ID 簽章＋公證、文件</td><td>可安裝的 pkg</td><td class="num">2 週</td></tr>
+  </table></div>
+</section>
+
+<section id="next">
+  <h2>建議下一步</h2>
+  <ol>
+    <li><b>先讀這三篇</b>：Zenzai（NLP2025，最接近的已出貨架構）→ MSLLM（ACL 2025，分數融合公式）→ Jia &amp; Zhao（ACL 2014，為什麼容錯必須和轉換聯合做）。另外直接讀 azooKey-Desktop 的 <code>zenzai.swift</code>，以及它 #347、#357、#380 三個 issue。</li>
+    <li><b>花 30 分鐘手測原生注音</b>：照第 8.5 節的 U1–U21 在 TextEdit 逐項記錄。這是「按鍵完全照原生」唯一可靠的依據，也決定 M2 的實作細節。</li>
+    <li><b>開始 M1</b>：Swift 版的組字器、lattice、容錯候選，加上 MLX-Swift 推論 actor。先在命令列重現本報告 PoC 的準確度，再量 Swift 版每音節的 p95（目標 ≤30 ms）。</li>
+    <li><b>同步啟動資料收集</b>（突破口 2）：先找 5 人做「限速、禁修正」的注音重打 pilot，用來校正錯誤模型。</li>
+    <li><b>授權先處理</b>：商用的話，詞典與詞頻以 McBopomofo（MIT）為底或自建（vChewing 詞頻限非商用、libchewing 是 LGPL）；模型選 Apache-2.0（Qwen3/Qwen3.5、Gemma 4）。</li>
+  </ol>
+</section>
+
+<section id="links">
+  <h2>全部連結</h2>
+  <h3>論文</h3>
+  <ul class="links-list small">
+    <li><a href="https://arxiv.org/abs/2506.06887" target="_blank">Mixture of Small and Large Models for Chinese Spelling Check (MSLLM)</a> — ACL 2025</li>
+    <li><a href="https://arxiv.org/abs/2410.04027" target="_blank">A Simple yet Effective Training-free Prompt-free Approach to CSC Based on LLMs</a> — EMNLP 2024</li>
+    <li><a href="https://aclanthology.org/2026.lrec-1.337/" target="_blank">Benchmarking LLMs for Chinese and Japanese IMEs</a> — LREC 2026</li>
+    <li><a href="https://www.anlp.jp/proceedings/annual_meeting/2025/pdf_dir/P1-19.pdf" target="_blank">ニューラルかな漢字変換システム Zenzai</a> — NLP2025</li>
+    <li><a href="https://aclanthology.org/P14-1142/" target="_blank">A Joint Graph Model for Pinyin-to-Chinese Conversion with Typo Correction</a> — ACL 2014</li>
+    <li><a href="https://aclanthology.org/P00-1031/" target="_blank">A New Statistical Approach to Chinese Pinyin Input</a> — ACL 2000</li>
+    <li><a href="https://arxiv.org/abs/2311.01166" target="_blank">Generative Input: Towards Next-Generation Input Methods Paradigm</a> — arXiv 2023</li>
+    <li><a href="https://arxiv.org/abs/2203.00249" target="_blank">Exploring and Adapting Chinese GPT to Pinyin Input Method (PinyinGPT)</a> — ACL 2022</li>
+    <li><a href="https://arxiv.org/abs/2205.11737" target="_blank">PERT: A New Solution to Pinyin to Character Conversion Task</a> — arXiv 2022</li>
+    <li><a href="https://arxiv.org/abs/2406.16536" target="_blank">C-LLM: Learn to Check Chinese Spelling Errors Character by Character</a> — EMNLP 2024</li>
+    <li><a href="https://arxiv.org/abs/2211.08788" target="_blank">CSCD-NS: a Chinese Spelling Check Dataset for Native Speakers</a> — ACL 2024</li>
+    <li><a href="https://arxiv.org/abs/2305.17721" target="_blank">Rethinking Masked Language Modeling for Chinese Spelling Correction (LEMON)</a> — ACL 2023</li>
+    <li><a href="https://arxiv.org/abs/2308.08796" target="_blank">Chinese Spelling Correction as Rephrasing Language Model (ReLM)</a> — AAAI 2024</li>
+    <li><a href="https://arxiv.org/abs/2302.07324" target="_blank">READIN: A Chinese Multi-Task Benchmark with Realistic and Diverse Input Noises</a> — ACL 2023</li>
+    <li><a href="https://arxiv.org/abs/2512.23971" target="_blank">CEC-Zero: Zero-Supervision Character Error Correction</a> — AAAI 2026</li>
+    <li><a href="https://arxiv.org/abs/2606.00020" target="_blank">CSRP: CoT Reasoning for Chinese Text Correction via RL</a> — ACL 2026</li>
+    <li><a href="https://aclanthology.org/2021.acl-long.462" target="_blank">Instantaneous GEC with Shallow Aggressive Decoding</a> — ACL 2021</li>
+    <li><a href="https://arxiv.org/abs/2205.10350" target="_blank">Lossless Acceleration for Seq2seq Generation with Aggressive Decoding</a> — arXiv 2022</li>
+    <li><a href="https://aclanthology.org/2020.bea-1.16/" target="_blank">GECToR – Grammatical Error Correction: Tag, Not Rewrite</a> — BEA 2020</li>
+    <li><a href="https://aclanthology.org/2024.bea-1.3" target="_blank">Pillars of Grammatical Error Correction</a> — BEA 2024</li>
+    <li><a href="https://aclanthology.org/2025.bea-1.9/" target="_blank">Adapting LLMs for Minimal-edit Grammatical Error Correction</a> — BEA 2025</li>
+    <li><a href="https://aclanthology.org/2025.emnlp-main.1431/" target="_blank">Leveraging What's Overfixed (PoCO)</a> — EMNLP 2025</li>
+    <li><a href="https://arxiv.org/abs/2401.07702" target="_blank">Prompting open-source and commercial LMs for GEC of English learner text</a> — ACL Findings 2024</li>
+    <li><a href="https://aclanthology.org/2024.acl-demos.27/" target="_blank">Proofread: Fixes All Errors with One Tap</a> — ACL 2024 Demo</li>
+    <li><a href="https://aclanthology.org/C90-2036/" target="_blank">A Spelling Correction Program Based on a Noisy Channel Model</a> — COLING 1990</li>
+    <li><a href="https://aclanthology.org/P00-1037/" target="_blank">An Improved Error Model for Noisy Channel Spelling Correction</a> — ACL 2000</li>
+    <li><a href="https://userinterfaces.aalto.fi/136Mkeystrokes/" target="_blank">Observations on Typing from 136 Million Keystrokes</a> — CHI 2018</li>
+    <li><a href="https://epub.uni-regensburg.de/55007/1/text-input-latency.pdf" target="_blank">Effects of Text Input Latency on Performance and Task Load</a> — MUM 2023</li>
+    <li><a href="https://vvise.iat.sfu.ca/pubs/alharbi2020frustration" target="_blank">The Effects of Predictive Features of Mobile Keyboards on Text Entry Speed and Errors</a> — ISS 2020</li>
+    <li><a href="https://research.google/pubs/a-costbenefit-study-of-text-entry-suggestion-interaction/" target="_blank">A Cost–Benefit Study of Text Entry Suggestion Interaction</a> — CHI 2016</li>
+    <li><a href="https://arxiv.org/abs/1908.10992" target="_blank">Two-Pass End-to-End Speech Recognition</a> — Interspeech 2019</li>
+    <li><a href="https://arxiv.org/abs/2004.03643" target="_blank">Re-translation versus Streaming for Simultaneous Translation</a> — IWSLT 2020</li>
+    <li><a href="https://arxiv.org/abs/2604.27296" target="_blank">To Diff or Not to Diff? (AdaEdit)</a> — ACL 2026 Findings</li>
+    <li><a href="https://arxiv.org/abs/2311.04934" target="_blank">Prompt Cache: Modular Attention Reuse for Low-Latency Inference</a> — MLSys 2024</li>
+    <li><a href="https://arxiv.org/abs/2412.01447" target="_blank">PLD+</a> — NAACL Findings 2025 ・ <a href="https://arxiv.org/abs/2502.08923" target="_blank">CopySpec</a> — EMNLP 2025</li>
+    <li><a href="https://arxiv.org/abs/2305.09781" target="_blank">SpecInfer (tree attention)</a> — ASPLOS 2024</li>
+    <li><a href="https://arxiv.org/abs/2507.13575" target="_blank">Apple Intelligence Foundation Language Models Tech Report 2025</a></li>
+    <li>Logan &amp; Crump, Cognitive illusions of authorship reveal hierarchical error detection in skilled typists — Science 330:683–686 (2010), DOI 10.1126/science.1190483</li>
+  </ul>
+  <h3>產品、開源、文件</h3>
+  <ul class="links-list small">
+    <li><a href="https://github.com/azooKey/azooKey-Desktop" target="_blank">azooKey-Desktop</a> ・ <a href="https://github.com/azooKey/AzooKeyKanaKanjiConverter" target="_blank">AzooKeyKanaKanjiConverter</a> ・ issues <a href="https://github.com/azooKey/azooKey-Desktop/issues/347" target="_blank">#347</a> <a href="https://github.com/azooKey/azooKey-Desktop/issues/357" target="_blank">#357</a> <a href="https://github.com/azooKey/azooKey-Desktop/issues/380" target="_blank">#380</a></li>
+    <li><a href="https://github.com/openvanilla/McBopomofo" target="_blank">McBopomofo</a> ・ <a href="https://github.com/vChewing/vChewing-macOS" target="_blank">vChewing</a> ・ <a href="https://github.com/chewing/libchewing" target="_blank">libchewing</a> ・ <a href="https://github.com/chewing/libchewing-data" target="_blank">libchewing-data</a> ・ <a href="https://github.com/rime/squirrel" target="_blank">Squirrel</a> ・ <a href="https://github.com/dongyuwei/hallelujahIM" target="_blank">hallelujahIM</a> ・ <a href="https://github.com/fcitx-contrib/fcitx5-macos" target="_blank">fcitx5-macos</a></li>
+    <li><a href="https://github.com/vieenrose/sloth-zhuyin-linux" target="_blank">樹懶注音</a> ・ <a href="https://github.com/workfunction/McBopomofoLM" target="_blank">McBopomofoLM</a> ・ <a href="https://huggingface.co/Luigi/slothlm-e-12m-zhuyin" target="_blank">SlothLM-E</a> ・ <a href="https://github.com/Nanako0129/shanjie" target="_blank">善解</a> ・ <a href="https://github.com/zhanghaozhecn/rime-llm-rerank" target="_blank">rime-llm-rerank</a></li>
+    <li><a href="https://github.com/nilava/TabType" target="_blank">TabType</a> ・ <a href="https://cotypist.app/compatibility" target="_blank">Cotypist 相容性表</a> ・ <a href="https://github.com/MicroZ-LLC/AllInOneIME" target="_blank">AllInOneIME</a> ・ <a href="https://github.com/madeye/ds-input" target="_blank">ds-input</a></li>
+    <li><a href="https://research.google/blog/grammar-correction-as-you-type-on-pixel-6/" target="_blank">Grammar Correction as You Type, on Pixel 6</a> ・ <a href="https://www.grammarly.com/blog/engineering/on-device-models-scale/" target="_blank">Grammarly on-device</a> ・ <a href="https://jackcook.com/2023/09/08/predictive-text.html" target="_blank">Jack Cook：Apple predictive text</a></li>
+    <li><a href="https://support.apple.com/guide/chinese-input-method/cimzt15531/mac" target="_blank">Apple：使用繁體注音輸入</a> ・ <a href="https://support.apple.com/guide/chinese-input-method/cim12992/mac" target="_blank">候選字視窗</a> ・ <a href="https://support.apple.com/guide/chinese-input-method/cim21aa5fa50/mac" target="_blank">輸入法設定</a> ・ <a href="https://support.apple.com/guide/chinese-input-method/cimkeyt36646/mac" target="_blank">繁中快速鍵</a></li>
+    <li><a href="https://developer.apple.com/documentation/foundationmodels" target="_blank">Foundation Models</a> ・ <a href="https://developer.apple.com/documentation/coreai" target="_blank">Core AI</a> ・ <a href="https://developer.apple.com/forums/thread/789788" target="_blank">FM 背景 rate limit 討論</a> ・ <a href="https://github.com/ggml-org/llama.cpp/discussions/4167" target="_blank">llama.cpp Apple Silicon 基準</a> ・ <a href="https://machinelearning.apple.com/research/exploring-llms-mlx-m5" target="_blank">Apple：MLX on M5 vs M4</a></li>
+    <li><a href="https://en.wikipedia.org/wiki/GGPO" target="_blank">GGPO（rollback netcode）</a> ・ <a href="https://danluu.com/input-lag/" target="_blank">Dan Luu：Computer latency</a> ・ <a href="https://www.nngroup.com/articles/response-times-3-important-limits/" target="_blank">Nielsen：Response Times</a></li>
+  </ul>
+</section>
+
+<footer>
+  <p>產生日期 2026-10-17。方法：5 個平行研究代理（英文糾錯、中文糾錯與 LLM 輸入法、延遲技術、產品與 IMK、原生按鍵規格）分別搜尋論文、讀原始碼與 issue、讀本機系統檔，再由主代理在 MacBook Air M4 上下載 9 個模型做實測與 PoC。</p>
+  <p>誠實聲明：(1) 論文的「結果」是作者宣稱；社群專案（McBopomofoLM、SlothLM-E、善解、樹懶注音、rime-llm-rerank）的數字是自報、非同儕審查。(2) PoC 的測試句由我撰寫（100 句、138 段、1,563 字），錯誤是程式注入的合成錯誤，讀音由 libchewing 詞庫＋pypinyin＋規則自動產生（多音字可能有少量錯）；結果用來看「相對差異與數量級」，不是正式 benchmark。(3) 延遲在 Python MLX 中量測，Swift 實作預期更低；多個模型依序測量時機器逐漸升溫（thermalState 由 nominal 變 fair），越晚測的模型延遲可能偏高。(4) 未能確認的項目：Deber 2015 JND 原文數字（轉引）、第三方 IME 宣告 Caps Lock 切換鍵後的行為、IMK 程序使用 Core AI/ANE 的實際延遲、各 app 對 replacementRange 的支援（需測試矩陣）、21 項原生按鍵細節（第 8.5 節）。(5) 研究期間 web 搜尋額度在後段用盡，部分延遲感知文獻只能二手引用。</p>
+</footer>
+
+<script>
+(function () {
+  // Accuracy (with typos) vs scoring latency for 8 candidates — one axis each, no dual axis.
+  const data = [{"name": "Gemma 3 270M 4-bit", "arch": "pure", "x": 12.6, "y": 96.23, "clean": 97.76, "rec": 84.8, "dx": 10, "dy": 16, "anchor": "start"}, {"name": "Qwen3-0.6B Base 4-bit", "arch": "pure", "x": 36.4, "y": 96.67, "clean": 98.27, "rec": 85.5, "dx": -10, "dy": 18, "anchor": "end"}, {"name": "Qwen3-0.6B 8-bit", "arch": "pure", "x": 44.6, "y": 96.8, "clean": 98.4, "rec": 84.8, "dx": 10, "dy": 18, "anchor": "start"}, {"name": "Qwen3.5-0.8B 4-bit", "arch": "hybrid", "x": 39.9, "y": 97.12, "clean": 98.53, "rec": 86.2, "dx": 10, "dy": -10, "anchor": "start"}, {"name": "Qwen3-1.7B 4-bit", "arch": "pure", "x": 75.0, "y": 96.99, "clean": 98.59, "rec": 86.2, "dx": 10, "dy": 18, "anchor": "start"}, {"name": "Qwen3.5-2B 4-bit", "arch": "hybrid", "x": 67.2, "y": 97.06, "clean": 98.59, "rec": 86.2, "dx": 10, "dy": -10, "anchor": "start"}];
+  const BASE = 94.11; // typo-tolerant lattice without LLM
+  const COLOR = { pure: "#3987e5", hybrid: "#d95926" }; // validated on #181b24 (dark)
+  const svg = document.getElementById("pareto");
+  const tip = document.getElementById("pareto-tip");
+  if (!svg) return;
+  const NS = "http://www.w3.org/2000/svg";
+  const W = 760, H = 380, m = { l: 58, r: 28, t: 46, b: 52 };
+  const xmax = Math.ceil(Math.max(...data.map(d => d.x)) / 25) * 25 + 25;
+  const ymin = 93.5, ymax = 97.5;
+  const sx = v => m.l + (v / xmax) * (W - m.l - m.r);
+  const sy = v => m.t + ((ymax - v) / (ymax - ymin)) * (H - m.t - m.b);
+  const el = (tag, attrs, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    if (text !== undefined) e.textContent = text;
+    svg.appendChild(e);
+    return e;
+  };
+  // grid + y ticks
+  for (let v = ymin + 0.5; v <= ymax + 1e-9; v += 0.5) {
+    el("line", { x1: m.l, x2: W - m.r, y1: sy(v), y2: sy(v), style: "stroke:var(--border);stroke-width:1" });
+    el("text", { x: m.l - 8, y: sy(v) + 4, "text-anchor": "end", style: "fill:var(--muted);font-size:12px;font-variant-numeric:tabular-nums" }, v.toFixed(1) + "%");
+  }
+  // x ticks
+  for (let v = 0; v <= xmax; v += 25) {
+    el("text", { x: sx(v), y: H - m.b + 20, "text-anchor": "middle", style: "fill:var(--muted);font-size:12px;font-variant-numeric:tabular-nums" }, v + " ms");
+  }
+  el("line", { x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, style: "stroke:var(--muted);stroke-width:1" });
+  el("text", { x: (m.l + W - m.r) / 2, y: H - 10, "text-anchor": "middle", style: "fill:var(--muted);font-size:12px" }, "8 個候選打分延遲 p50（越左越快）");
+  el("text", { x: m.l, y: 18, style: "fill:var(--muted);font-size:12px" }, "有錯字時的字準確率（越上越好）");
+  // reference lines
+  el("line", { x1: m.l, x2: W - m.r, y1: sy(BASE), y2: sy(BASE), style: "stroke:var(--muted);stroke-width:1;stroke-dasharray:5 4" });
+  el("text", { x: W - m.r, y: sy(BASE) - 6, "text-anchor": "end", style: "fill:var(--muted);font-size:12px" }, "只用容錯 lattice（無 LLM）94.11%");
+  el("line", { x1: sx(30), x2: sx(30), y1: m.t, y2: H - m.b, style: "stroke:var(--muted);stroke-width:1;stroke-dasharray:2 4" });
+  el("text", { x: sx(30) + 6, y: m.t + 12, style: "fill:var(--muted);font-size:12px" }, "目標 30 ms");
+  // legend (always present for >= 2 series)
+  const lg = [["純 attention（可 O(1) 回滾）", "pure"], ["hybrid（遞迴狀態）", "hybrid"]];
+  let lx = W - m.r - 360;
+  for (const [label, k] of lg) {
+    el("circle", { cx: lx, cy: 24, r: 5, style: `fill:${COLOR[k]}` });
+    el("text", { x: lx + 10, y: 28, style: "fill:var(--text);font-size:12px" }, label);
+    lx += 190;
+  }
+  // points + selective direct labels (model identity)
+  for (const d of data) {
+    const cx = sx(d.x), cy = sy(d.y);
+    el("text", { x: cx + d.dx, y: cy + d.dy, "text-anchor": d.anchor, style: "fill:var(--text);font-size:12px" }, d.name);
+    const hit = el("circle", { cx, cy, r: 14, style: "fill:transparent;cursor:default" });
+    el("circle", { cx, cy, r: 6, style: `fill:${COLOR[d.arch]};stroke:var(--panel);stroke-width:2;pointer-events:none` });
+    const show = () => {
+      tip.innerHTML = `<b>${d.name}</b><br>有錯字字準確率 ${d.y.toFixed(2)}%<br>乾淨輸入 ${d.clean.toFixed(2)}%<br>錯字救回 ${d.rec.toFixed(1)}%<br>8 候選打分 ${d.x} ms`;
+      const box = svg.getBoundingClientRect();
+      const k = box.width / W;
+      tip.style.left = Math.min(cx * k + 12, box.width - 170) + "px";
+      tip.style.top = Math.max(cy * k - 70, 0) + "px";
+      tip.style.opacity = 1;
+    };
+    hit.addEventListener("mouseenter", show);
+    hit.addEventListener("mouseleave", () => (tip.style.opacity = 0));
+  }
+})();
+
+</script>
+</main>
+</div>
+</body>
+</html>

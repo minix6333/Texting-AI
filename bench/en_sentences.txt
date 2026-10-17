@@ -1,0 +1,111 @@
+I will send you the updated report before the meeting tomorrow morning.
+Could you please check whether the numbers in the spreadsheet are correct?
+The weather has been really nice this week, so we went hiking on Saturday.
+Thanks for your help with the presentation, it went much better than expected.
+We need to finish the design document before we start writing any code.
+My flight was delayed by two hours because of the storm.
+Let me know if you have any questions about the new process.
+She has been working on this project for almost three years.
+The restaurant around the corner serves the best noodles in town.
+I think we should schedule a call with the client next week.
+Please remember to turn off the lights when you leave the office.
+The results of the experiment were quite different from what we expected.
+He forgot his password again and had to reset it.
+Our team is hiring a frontend engineer with experience in React.
+I have already uploaded the files to the shared folder.
+The battery life of this laptop is much better than I thought.
+We decided to move the meeting to Thursday afternoon.
+Can you recommend a good book about the history of science?
+The children were playing happily in the park after school.
+It is important to get enough sleep before an exam.
+The new feature should make it easier for users to find their documents.
+I am sorry for the late reply, I was traveling all week.
+They are planning to open a second store in Taichung next year.
+The latency of the model must stay below fifty milliseconds.
+Please review the pull request when you have a moment.
+The museum is closed on Mondays and public holidays.
+I would like to book a table for four people at seven o'clock.
+Their new apartment is close to the train station.
+The teacher asked the students to submit their essays by Friday.
+We should probably buy some groceries on the way home.
+This coffee shop is a quiet place to read and work.
+The doctor told him to drink more water and rest for a few days.
+Our budget for this quarter is already higher than planned.
+I could not find the keys that I left on the kitchen table.
+The concert tickets sold out within ten minutes.
+Could you explain the difference between these two approaches?
+He parked his car in the garage across the street.
+We are still waiting for the final approval from the manager.
+The website will be unavailable tonight because of scheduled maintenance.
+Learning a new language takes a lot of patience and practice.
+I accidentally deleted the email, can you send it again?
+The price of vegetables has gone up a lot recently.
+My sister is studying medicine at the university.
+The software update fixed several security issues.
+Let us meet at the entrance of the library at noon.
+The movie was so touching that I cried at the end.
+You can find the instructions in the attached document.
+Everyone was surprised by the sudden announcement.
+The company announced record profits for the third quarter.
+I usually go for a run along the river every morning.
+Please fill in your name and phone number on the form.
+The train was crowded because of the holiday weekend.
+We need more time to test the system before the release.
+He speaks three languages fluently.
+The cat likes to sleep on the sofa all afternoon.
+I am going to visit my grandparents this weekend.
+The interface is simple and easy to understand.
+She bought a new camera to take pictures of the night sky.
+Our neighbors are very friendly and helpful.
+The package should arrive within three business days.
+I have attached the latest version of the contract for your review.
+The bridge was closed for repairs, so we took a detour.
+The meeting notes will be shared with everyone after lunch.
+He apologized for the mistake and promised it would not happen again.
+This recipe only takes fifteen minutes to prepare.
+The students were excited about the field trip.
+I need to renew my passport before the trip.
+The server crashed last night and we lost some data.
+We should compare the prices before making a decision.
+Thank you for your patience while we fix the problem.
+She opened the window to let some fresh air into the room.
+The weather forecast says it will rain tomorrow.
+Our quarterly review is scheduled for next Monday.
+The kids built a sandcastle on the beach.
+I really appreciate your feedback on my proposal.
+The office will be closed during the national holiday.
+He was too tired to finish his homework last night.
+We received several complaints about the slow response time.
+The garden looks beautiful in the spring.
+I will call you as soon as I arrive at the airport.
+The algorithm runs much faster on the new hardware.
+Please make sure the door is locked before you leave.
+They spent the whole afternoon cleaning the garage.
+The lecture covered the basic principles of economics.
+I am not sure whether he received my message.
+The hotel offers free breakfast for all guests.
+We have to submit the application before the deadline.
+The road was icy, so everyone drove slowly.
+My computer keeps freezing when I open too many tabs.
+The committee will announce the winners next week.
+I prefer tea to coffee in the evening.
+The store is having a big sale this weekend.
+Could you turn down the music a little bit?
+The team celebrated their victory with a big dinner.
+I left my umbrella on the bus this morning.
+The new policy will take effect at the beginning of next month.
+She writes a short story every weekend.
+The printer on the second floor is out of paper.
+We are looking forward to working with you.
+The view from the top of the mountain was amazing.
+#CLEAN
+I pushed the fix to the repo and bumped the npm version.
+Run kubectl get pods to check whether the deployment is healthy.
+The async function returns a promise that resolves later.
+We grabbed boba after the standup.
+Her thesis is about photonic crystals and metasurfaces.
+The dataset contains tweets, emojis, and hashtags.
+I refactored the util module and removed the deprecated params.
+The barista made a perfect flat white.
+He tweaked the hyperparameters until the loss plateaued.
+Let's sync up tmrw about the onboarding flow.

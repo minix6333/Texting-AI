@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key><string>zh_TW</string>
+	<key>CFBundleExecutable</key><string>ZhuyinLLM</string>
+	<key>CFBundleIdentifier</key><string>com.minix.inputmethod.ZhuyinLLM</string>
+	<key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+	<key>CFBundleName</key><string>ZhuyinLLM</string>
+	<key>CFBundleDisplayName</key><string>注音 AI</string>
+	<key>CFBundlePackageType</key><string>APPL</string>
+	<key>CFBundleShortVersionString</key><string>0.1.0</string>
+	<key>CFBundleVersion</key><string>1</string>
+	<key>LSMinimumSystemVersion</key><string>14.0</string>
+	<key>LSBackgroundOnly</key><true/>
+	<key>NSPrincipalClass</key><string>NSApplication</string>
+	<key>InputMethodConnectionName</key><string>com.minix.inputmethod.ZhuyinLLM_Connection</string>
+	<key>InputMethodServerControllerClass</key><string>ZhuyinLLMInputController</string>
+	<key>InputMethodServerDelegateClass</key><string>ZhuyinLLMInputController</string>
+	<key>TISInputSourceID</key><string>com.minix.inputmethod.ZhuyinLLM</string>
+	<key>TISIntendedLanguage</key><string>zh-Hant</string>
+	<key>tsInputMethodIconFileKey</key><string>icon.tiff</string>
+	<key>TISIconIsTemplate</key><true/>
+	<key>tsInputMethodCharacterRepertoireKey</key><array><string>Hant</string><string>Latn</string></array>
+	<key>ComponentInputModeDict</key>
+	<dict>
+		<key>tsInputModeListKey</key>
+		<dict>
+			<key>com.minix.inputmethod.ZhuyinLLM.Zhuyin</key>
+			<dict>
+				<key>TISInputSourceID</key><string>com.minix.inputmethod.ZhuyinLLM.Zhuyin</string>
+				<!-- label drawn by the system in the input-source badge next to the cursor -->
+				<key>TISIconLabels</key><dict><key>Primary</key><string>注音</string><key>Secondary</key><string>AI</string></dict>
+				<key>TISIntendedLanguage</key><string>zh-Hant</string>
+				<key>TISIconIsTemplate</key><true/>
+				<key>tsInputModeMenuIconFileKey</key><string>icon.tiff</string>
+				<key>tsInputModeAlternateMenuIconFileKey</key><string>icon.tiff</string>
+				<key>tsInputModePaletteIconFileKey</key><string>icon.tiff</string>
+				<key>tsInputModeDefaultStateKey</key><true/>
+				<key>tsInputModeIsVisibleKey</key><true/>
+				<key>tsInputModePrimaryInScriptKey</key><true/>
+				<key>tsInputModeScriptKey</key><string>smUnicode</string>
+				<key>tsInputModeCharacterRepertoireKey</key><array><string>Hant</string></array>
+			</dict>
+		</dict>
+		<key>tsVisibleInputModeOrderedArrayKey</key>
+		<array>
+			<string>com.minix.inputmethod.ZhuyinLLM.Zhuyin</string>
+		</array>
+	</dict>
+</dict>
+</plist>

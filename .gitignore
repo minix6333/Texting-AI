@@ -1,0 +1,10 @@
+.DS_Store
+# builds
+.build/
+mac/build/
+windows/build*/
+# models are downloaded at install time
+*.gguf
+# benchmark sources fetched by bench/scripts/fetch_en_data.sh, and what is built from them
+bench/en_data/
+bench/en_eval.json
